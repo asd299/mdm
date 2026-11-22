@@ -1,0 +1,66 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- ========== iOS 语义色 ========== -->
+    <color name="ios_bg">#F2F2F7</color>
+    <color name="ios_card">#FFFFFF</color>
+    <color name="ios_label">#000000</color>
+    <color name="ios_label_2">#8A8A8E</color>
+    <color name="ios_label_3">#C7C7CC</color>
+    <color name="ios_separator">#E5E5EA</color>
+    <color name="ios_fill">#EFEFF4</color>
+    <color name="ios_fill_2">#E5E5EA</color>
+    <color name="ios_blue">#007AFF</color>
+    <color name="ios_blue_dark">#0062CC</color>
+    <color name="ios_blue_light">#1A007AFF</color>
+    <color name="ios_green">#34C759</color>
+    <color name="ios_orange">#FF9500</color>
+    <color name="ios_red">#FF3B30</color>
+    <color name="ios_purple">#AF52DE</color>
+    <color name="ios_teal">#5AC8FA</color>
+    <color name="ios_gray">#8E8E93</color>
+    <color name="ios_brown">#A2845E</color>
+    <color name="ios_scrim">#66000000</color>
+
+    <!-- ========== 兼容旧引用的别名 ========== -->
+    <color name="mdm_primary">#007AFF</color>
+    <color name="mdm_primary_dark">#0062CC</color>
+    <color name="mdm_accent">#FF9500</color>
+    <color name="mdm_surface">#F2F2F7</color>
+    <color name="white">#FFFFFF</color>
+    <color name="black">#000000</color>
+    <color name="status_running">#007AFF</color>
+    <color name="status_paused">#8E8E93</color>
+    <color name="status_done">#34C759</color>
+    <color name="status_failed">#FF3B30</color>
+
+    <!-- 文件类型分类色（沿用 iOS 系统色板） -->
+    <color name="cat_video">#FF3B30</color>
+    <color name="cat_audio">#AF52DE</color>
+    <color name="cat_image">#FF9500</color>
+    <color name="cat_doc">#007AFF</color>
+    <color name="cat_archive">#A2845E</color>
+    <color name="cat_apk">#34C759</color>
+    <color name="cat_other">#8E8E93</color>
+
+    <!-- 侧边栏 -->
+    <color name="nav_text">#1C1C1E</color>
+    <color name="nav_text_secondary">#8A8A8E</color>
+
+    <!-- ========== Material 语义色：全部指向 iOS 色板，避免回退到默认紫 ========== -->
+    <color name="mdm_on_primary">#FFFFFF</color>
+    <color name="mdm_primary_container">#E5F0FF</color>
+    <color name="mdm_on_primary_container">#0062CC</color>
+    <color name="mdm_secondary_container">#FFF0DE</color>
+    <color name="mdm_on_secondary_container">#8A4B00</color>
+    <color name="mdm_on_surface">#000000</color>
+    <color name="mdm_on_surface_variant">#8A8A8E</color>
+    <color name="mdm_outline">#C7C7CC</color>
+    <color name="mdm_outline_variant">#E5E5EA</color>
+    <color name="mdm_surface_variant">#EFEFF4</color>
+    <color name="mdm_surface_container_lowest">#FFFFFF</color>
+    <color name="mdm_surface_container_low">#FFFFFF</color>
+    <color name="mdm_surface_container">#FFFFFF</color>
+    <color name="mdm_surface_container_high">#FFFFFF</color>
+    <color name="mdm_surface_container_highest">#EFEFF4</color>
+    <color name="mdm_scrim">#66000000</color>
+</resources>

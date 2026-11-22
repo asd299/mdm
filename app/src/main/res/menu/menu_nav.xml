@@ -1,0 +1,81 @@
+<?xml version="1.0" encoding="utf-8"?>
+<menu xmlns:android="http://schemas.android.com/apk/res/android">
+    <group android:checkableBehavior="single">
+        <item
+            android:id="@+id/nav_all"
+            android:icon="@drawable/ic_nav_all"
+            android:title="@string/nav_all" />
+        <item
+            android:id="@+id/nav_running"
+            android:icon="@drawable/ic_nav_running"
+            android:title="@string/nav_running" />
+        <item
+            android:id="@+id/nav_done"
+            android:icon="@drawable/ic_nav_done"
+            android:title="@string/nav_done" />
+        <item
+            android:id="@+id/nav_paused"
+            android:icon="@drawable/ic_nav_paused"
+            android:title="@string/nav_paused" />
+        <item
+            android:id="@+id/nav_failed"
+            android:icon="@drawable/ic_nav_failed"
+            android:title="@string/nav_failed" />
+    </group>
+
+    <item android:title="@string/nav_group_category">
+        <menu>
+            <group android:checkableBehavior="single">
+                <item
+                    android:id="@+id/nav_video"
+                    android:icon="@drawable/ic_cat_video"
+                    android:title="@string/nav_video" />
+                <item
+                    android:id="@+id/nav_audio"
+                    android:icon="@drawable/ic_cat_audio"
+                    android:title="@string/nav_audio" />
+                <item
+                    android:id="@+id/nav_image"
+                    android:icon="@drawable/ic_cat_image"
+                    android:title="@string/nav_image" />
+                <item
+                    android:id="@+id/nav_doc"
+                    android:icon="@drawable/ic_cat_doc"
+                    android:title="@string/nav_doc" />
+                <item
+                    android:id="@+id/nav_archive"
+                    android:icon="@drawable/ic_cat_archive"
+                    android:title="@string/nav_archive" />
+                <item
+                    android:id="@+id/nav_apk"
+                    android:icon="@drawable/ic_cat_apk"
+                    android:title="@string/nav_apk" />
+                <item
+                    android:id="@+id/nav_other"
+                    android:icon="@drawable/ic_cat_other"
+                    android:title="@string/nav_other" />
+            </group>
+        </menu>
+    </item>
+
+    <item android:title="@string/nav_group_more">
+        <menu>
+            <item
+                android:id="@+id/nav_folder"
+                android:icon="@drawable/ic_folder"
+                android:title="@string/save_path_label" />
+            <item
+                android:id="@+id/nav_settings"
+                android:icon="@drawable/ic_settings"
+                android:title="@string/settings" />
+            <item
+                android:id="@+id/nav_crash"
+                android:icon="@drawable/ic_bug"
+                android:title="@string/crash_log" />
+            <item
+                android:id="@+id/nav_about"
+                android:icon="@drawable/ic_info"
+                android:title="@string/nav_about" />
+        </menu>
+    </item>
+</menu>
