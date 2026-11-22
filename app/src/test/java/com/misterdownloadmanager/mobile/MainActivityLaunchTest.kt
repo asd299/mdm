@@ -109,7 +109,8 @@ class MainActivityLaunchTest {
             scenario.onActivity { a ->
                 assertEquals(5, a.findViewById<android.widget.LinearLayout>(R.id.bodyTasks).childCount)
                 assertEquals(7, a.findViewById<android.widget.LinearLayout>(R.id.bodyTypes).childCount)
-                assertTrue(a.findViewById<android.widget.LinearLayout>(R.id.bodyMore).childCount >= 5)
+                // 批量操作已移到顶部工具栏，这里只剩「崩溃日志 / 关于」
+                assertEquals(2, a.findViewById<android.widget.LinearLayout>(R.id.bodyMore).childCount)
             }
         }
     }

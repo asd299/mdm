@@ -109,6 +109,54 @@ class ScreenshotTest {
         }
     }
 
+    /** 左滑多选后的列表：选中态高亮 + 底部批量操作条 */
+    @Test
+    fun renderSelection() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val dir = ctx.filesDir.absolutePath
+        val names = listOf(
+            "Interstellar.2014.2160p.mkv", "app-release.apk", "IMG_2048.jpg",
+            "broken.zip", "notes.pdf",
+        )
+        val dirs = listOf(
+            DownloadTask(id = "p0", url = "https://example.com/a", fileName = names[0], dir = dir,
+                totalBytes = 8_000_000_000, status = Status.DOWNLOADING,
+                segments = mutableListOf(Segment(0, 0, 8_000_000_000, 3_100_000_000)),
+                addedAt = 5_000L),
+            DownloadTask(id = "p1", url = "https://example.com/b", fileName = names[1], dir = dir,
+                totalBytes = 24_000_000, status = Status.COMPLETED,
+                segments = mutableListOf(Segment(0, 0, 24_000_000, 24_000_000)),
+                publicSaved = true, addedAt = 4_000L),
+            DownloadTask(id = "p2", url = "https://example.com/c", fileName = names[2], dir = dir,
+                totalBytes = 4_500_000, status = Status.PAUSED,
+                segments = mutableListOf(Segment(0, 0, 4_500_000, 1_200_000)),
+                addedAt = 3_000L),
+            DownloadTask(id = "p3", url = "https://example.com/d", fileName = names[3], dir = dir,
+                status = Status.FAILED, error = "HTTP 404", addedAt = 2_000L),
+            DownloadTask(id = "p4", url = "https://example.com/e", fileName = names[4], dir = dir,
+                totalBytes = 900_000, status = Status.COMPLETED,
+                segments = mutableListOf(Segment(0, 0, 900_000, 900_000)),
+                publicSaved = true, addedAt = 1_000L),
+        )
+        synchronized(Repo.tasks) {
+            Repo.tasks.clear()
+            Repo.tasks.addAll(dirs)
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+                rv.layoutAnimation = null
+                val ad = rv.adapter as DownloadsAdapter
+                ad.refresh()
+                // 模拟：先左滑第 1 项，再左滑第 3 项 → 三项区间选中
+                ad.selectOnly(dirs[0])
+                ad.selectRange(dirs[0].id, dirs[2].id)
+                rv.requestLayout()
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_selection.png")
+            }
+        }
+    }
+
     @Test
     fun renderSheet() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()

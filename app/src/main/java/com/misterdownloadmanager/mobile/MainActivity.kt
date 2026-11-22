@@ -254,9 +254,8 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * DrawerLayout 默认只在屏幕最左约 20dp 的边缘能拖出抽屉，很难碰到。
-     * 这里把可起手区域扩大到屏幕宽度的 1/3；此外，**空白区域**（列表之外）任意位置
-     * 向右滑也能打开侧边栏。只有按在列表卡片上、且不在左 1/3 时，右滑才留给列表项
-     * 自己的「暂停 / 继续」。
+     * 这里改为：**任意位置**向右滑都能打开侧边栏——包括按在列表卡片上，
+     * 右滑不再触发任何列表项动作。左滑仍然交给列表（选中 / 区间多选）。
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
         if (!::drawer.isInitialized) return super.dispatchTouchEvent(ev)
@@ -266,11 +265,8 @@ class MainActivity : AppCompatActivity() {
                 drawerSwipeClaimed = false
                 drawerDownX = ev.x
                 drawerDownY = ev.y
-                drawerSwipeCandidate = !drawer.isDrawerOpen(GravityCompat.START) &&
-                    (
-                        ev.x <= resources.displayMetrics.widthPixels / 3f ||
-                            !isTouchOnListItem(ev)
-                        )
+                // 右滑在任何位置（含列表卡片上）都只是打开侧边栏，认手即可，不需要命中测试
+                drawerSwipeCandidate = !drawer.isDrawerOpen(GravityCompat.START)
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -305,21 +301,6 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return super.dispatchTouchEvent(ev)
-    }
-
-    /** 按下的点是否落在列表卡片上（空白处右滑要能开抽屉，卡片上右滑要留给暂停/继续） */
-    private fun isTouchOnListItem(ev: MotionEvent): Boolean {
-        if (!::recycler.isInitialized || recycler.childCount == 0) return false
-        return try {
-            val loc = IntArray(2)
-            recycler.getLocationOnScreen(loc)
-            val x = ev.rawX - loc[0]
-            val y = ev.rawY - loc[1]
-            if (x < 0f || y < 0f || x > recycler.width || y > recycler.height) return false
-            recycler.findChildViewUnder(x, y) != null
-        } catch (_: Throwable) {
-            false
-        }
     }
 
     // ---------- 侧边栏 ----------
@@ -365,9 +346,6 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        addActionRow(bodyMore, R.drawable.ic_pause, R.string.pause_all) { pauseAll() }
-        addActionRow(bodyMore, R.drawable.ic_resume, R.string.resume_all) { resumeAll() }
-        addActionRow(bodyMore, R.drawable.ic_delete, R.string.clear_finished) { clearFinished() }
         addActionRow(bodyMore, R.drawable.ic_bug, R.string.crash_log) { CrashLogActivity.safeStart(this) }
         addActionRow(bodyMore, R.drawable.ic_info, R.string.nav_about) { showAbout() }
 
@@ -558,6 +536,16 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.batch_none, Toast.LENGTH_SHORT).show()
             return
         }
+        // 顶部常驻按钮容易误触，先确认一次
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.clear_finished)
+            .setMessage(getString(R.string.clear_done_confirm, toRemove.size))
+            .setPositiveButton(R.string.clear_finished) { _, _ -> doClearFinished(toRemove) }
+            .setNegativeButton(android.R.string.cancel, null)
+            .show()
+    }
+
+    private fun doClearFinished(toRemove: List<DownloadTask>) {
         toRemove.forEach { Repo.remove(this, it) }
         adapter.refresh()
         updateEmpty()
@@ -1072,19 +1060,18 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- 滑动操作 ----------
 
-    /** 左滑 = 删除；右滑 = 暂停 / 继续。滑动开始时记住任务，避免 onSwiped 时位置失效 */
+    /** 左滑 = 选中 / 区间多选。右滑由抽屉手势接管，列表项不再有自己的右滑动作 */
     private var swipedTask: DownloadTask? = null
 
+    /** 首次左滑选中时提示一次区间多选用法 */
+    private var swipeSelectHinted = false
+
     /**
-     * 各项允许的滑动方向。
-     * 已完成的任务右滑没有任何可执行动作；若仍允许，ItemTouchHelper 会把卡片滑走、
-     * 而列表数据没变化导致不重绑，于是出现「项消失了，切个分类又回来」。
+     * 各项允许的滑动方向：只保留左滑（选中）。
+     * 右滑在 dispatchTouchEvent 里就被识别为「打开侧边栏」，卡片不会再跟着手指滑动。
      */
-    private fun swipeDirsFor(task: DownloadTask?): Int {
-        if (adapter.selectionMode) return 0
-        return if (task != null && task.status == Status.COMPLETED) ItemTouchHelper.LEFT
-        else ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
-    }
+    private fun swipeDirsFor(task: DownloadTask?): Int =
+        if (task == null) 0 else ItemTouchHelper.LEFT
 
     /**
      * 强制把被滑动的行放回原位。
@@ -1123,8 +1110,7 @@ class MainActivity : AppCompatActivity() {
 
     private fun attachSwipe() {
         val density = resources.displayMetrics.density
-        val bgDelete = ContextCompat.getColor(this, R.color.status_failed)
-        val bgAction = ContextCompat.getColor(this, R.color.mdm_primary)
+        val bgSelect = ContextCompat.getColor(this, R.color.ios_blue)
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
@@ -1132,9 +1118,7 @@ class MainActivity : AppCompatActivity() {
             isFakeBoldText = true
         }
 
-        val callback = object : ItemTouchHelper.SimpleCallback(
-            0, ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT
-        ) {
+        val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int =
                 swipeDirsFor(adapter.taskAt(viewHolder.bindingAdapterPosition))
 
@@ -1188,25 +1172,16 @@ class MainActivity : AppCompatActivity() {
                     item.scaleX = 1f
                     item.scaleY = 1f
                 }
-                if (isCurrentlyActive && dX != 0f) {
+                // 只有左滑（右→左）有视觉反馈；右滑已被抽屉手势接管
+                if (isCurrentlyActive && dX < 0f) {
                     val top = item.top + 5 * density
                     val bottom = item.bottom - 5 * density
                     val r = 14 * density
-                    val text: String
-                    if (dX < 0) {
-                        fill.color = bgDelete
-                        val left = item.right + dX
-                        c.drawRoundRect(RectF(left, top, item.right.toFloat(), bottom), r, r, fill)
-                        text = getString(R.string.swipe_delete)
-                        c.drawText(text, left + 20 * density, (top + bottom) / 2 + label.textSize / 3, label)
-                    } else {
-                        fill.color = bgAction
-                        c.drawRoundRect(RectF(item.left.toFloat(), top, item.left + dX, bottom), r, r, fill)
-                        val t = adapter.taskAt(viewHolder.bindingAdapterPosition)
-                        text = if (t != null && (t.status == Status.DOWNLOADING || t.status == Status.QUEUED))
-                            getString(R.string.pause) else getString(R.string.resume)
-                        c.drawText(text, item.left + 20 * density, (top + bottom) / 2 + label.textSize / 3, label)
-                    }
+                    fill.color = bgSelect
+                    val left = item.right + dX
+                    c.drawRoundRect(RectF(left, top, item.right.toFloat(), bottom), r, r, fill)
+                    val text = getString(R.string.swipe_select)
+                    c.drawText(text, left + 20 * density, (top + bottom) / 2 + label.textSize / 3, label)
                 }
                 super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
             }
@@ -1215,7 +1190,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 处理一次滑动操作。左滑弹删除确认，右滑暂停 / 继续。
+     * 处理一次滑动操作：只有左滑（选中 / 区间多选）。
+     * 右滑在 [dispatchTouchEvent] 里就被识别为打开侧边栏，不会走到这里。
      *
      * 滑过阈值后 ItemTouchHelper 会把卡片平移出屏幕（250ms 的 RecoverAnimation），
      * 并且**不会**再调 clearView 把位移清零；若这里不复位，这一行就停在屏幕外，
@@ -1223,24 +1199,36 @@ class MainActivity : AppCompatActivity() {
      */
     private fun performSwipe(task: DownloadTask, direction: Int) {
         recycler.postDelayed({ rebindSwiped(task.id) }, SWIPE_SETTLE_MS)
-        if (direction == ItemTouchHelper.LEFT) {
-            MaterialAlertDialogBuilder(this)
-                .setTitle(getString(R.string.delete))
-                .setMessage(getString(R.string.delete_confirm, task.fileName.ifBlank { task.url }))
-                .setPositiveButton(R.string.delete) { _, _ ->
-                    startService(
-                        DownloadService.intent(
-                            this, DownloadService.ACTION_DELETE,
-                            DownloadService.EXTRA_ID to task.id
-                        )
-                    )
-                }
-                .setNegativeButton(android.R.string.cancel, null)
-                .setOnDismissListener { rebindSwiped(task.id) }
-                .show()
-        } else {
-            onPauseResume(task)
+        if (direction != ItemTouchHelper.LEFT) return
+        swipeSelect(task)
+    }
+
+    /**
+     * 左滑选择：
+     * - 首次（还没进多选）：只选中这一项，并记住为区间起点
+     * - 已有起点后再滑另一项：把起点与该项之间的所有项一起选中
+     * - 滑的正好是已选中的项：取消它
+     */
+    private fun swipeSelect(task: DownloadTask) {
+        val anchor = adapter.anchorId
+        when {
+            !adapter.selectionMode || anchor == null -> {
+                adapter.selectOnly(task)
+                hintSwipeSelect()
+            }
+
+            adapter.isSelected(task.id) -> adapter.toggle(task)
+
+            // 起点不在当前列表（切了分类/搜索）：退化成单选
+            else -> if (adapter.selectRange(anchor, task.id) == 0) adapter.selectOnly(task)
         }
+    }
+
+    /** 首次左滑时说明一下「再滑一项可批量选择」 */
+    private fun hintSwipeSelect() {
+        if (swipeSelectHinted) return
+        swipeSelectHinted = true
+        Toast.makeText(this, R.string.swipe_select_hint, Toast.LENGTH_LONG).show()
     }
 
     // ---------- 菜单 ----------
@@ -1249,12 +1237,27 @@ class MainActivity : AppCompatActivity() {
         menuInflater.inflate(R.menu.menu_main, menu)
 
         val iconTint = ContextCompat.getColor(this, R.color.ios_blue)
-        menu.findItem(R.id.action_sort)?.icon?.setTint(iconTint)
-        menu.findItem(R.id.action_search)?.icon?.setTint(iconTint)
+        listOf(
+            R.id.action_sort, R.id.action_search,
+            R.id.action_pause_all, R.id.action_resume_all, R.id.action_clear_done,
+        ).forEach { id -> menu.findItem(id)?.icon?.setTint(iconTint) }
 
         val searchItem = menu.findItem(R.id.action_search)
         val sv = searchItem.actionView as? SearchView ?: return true
         searchView = sv
+
+        // 搜索框展开需要整条工具栏：临时收起其它图标，避免被挤进「三点」溢出菜单
+        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                setListActionsVisible(false)
+                return true
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
+                setListActionsVisible(!adapter.selectionMode)
+                return true
+            }
+        })
         sv.queryHint = getString(R.string.search_hint)
         val searchTint = ContextCompat.getColor(this, R.color.ios_label_2)
         sv.findViewById<ImageView>(androidx.appcompat.R.id.search_button)?.setColorFilter(searchTint)
@@ -1288,16 +1291,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        val sel = adapter.selectionMode
-        menu.findItem(R.id.action_search)?.isVisible = !sel
-        menu.findItem(R.id.action_sort)?.isVisible = !sel
+        // 搜索展开时只剩搜索框；多选时交给底部批量条
+        val compact = adapter.selectionMode || searchView?.isIconified == false
+        listOf(
+            R.id.action_search, R.id.action_sort,
+            R.id.action_pause_all, R.id.action_resume_all, R.id.action_clear_done,
+        ).forEach { id ->
+            menu.findItem(id)?.isVisible = if (id == R.id.action_search) {
+                !adapter.selectionMode
+            } else {
+                !compact
+            }
+        }
         return super.onPrepareOptionsMenu(menu)
+    }
+
+    /** 只控制搜索两侧的列表操作 / 排序图标 */
+    private fun setListActionsVisible(visible: Boolean) {
+        val menu = toolbar.menu ?: return
+        listOf(R.id.action_sort, R.id.action_pause_all, R.id.action_resume_all, R.id.action_clear_done)
+            .forEach { menu.findItem(it)?.isVisible = visible }
     }
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean {
         return when (item.itemId) {
             R.id.action_sort -> {
                 showSortDialog()
+                true
+            }
+            R.id.action_pause_all -> {
+                pauseAll()
+                true
+            }
+            R.id.action_resume_all -> {
+                resumeAll()
+                true
+            }
+            R.id.action_clear_done -> {
+                clearFinished()
                 true
             }
             else -> super.onOptionsItemSelected(item)

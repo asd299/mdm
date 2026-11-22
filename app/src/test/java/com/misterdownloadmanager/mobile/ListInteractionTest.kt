@@ -1,7 +1,5 @@
 package com.misterdownloadmanager.mobile
 
-import androidx.appcompat.app.AlertDialog
-import android.content.DialogInterface
 import android.view.MotionEvent
 import android.view.View
 import android.widget.TextView
@@ -16,7 +14,6 @@ import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
-import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowLooper
 import java.util.concurrent.TimeUnit
 
@@ -133,9 +130,9 @@ class ListInteractionTest {
         }
     }
 
-    /** 按在列表卡片上右滑（不在左 1/3）：不应被抽屉抢走，留给「暂停 / 继续」 */
+    /** 按在列表卡片上右滑：和空白区域一样，直接打开侧边栏，不应触发列表动作 */
     @Test
-    fun swipeRightOnListItemKeepsDrawerClosed() {
+    fun swipeRightOnListItemOpensDrawer() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 val task = DownloadTask(
@@ -166,57 +163,62 @@ class ListInteractionTest {
                 }
                 send(MotionEvent.ACTION_DOWN, cx, cy, 0)
                 send(MotionEvent.ACTION_MOVE, cx + 200f, cy + 2f, 20)
-                assertTrue("卡片上的右滑应留给暂停/继续，不应打开抽屉", !claimed(a))
+                assertTrue("卡片上右滑也应直接打开侧边栏", claimed(a))
                 send(MotionEvent.ACTION_UP, cx + 200f, cy + 2f, 40)
             }
         }
     }
 
-    /** 左滑删除后点「取消」：卡片必须弹回原位，而不是停在屏幕外（看似消失） */
+    /** 左滑选中，再左滑另一项：区间内的项全部选中 */
     @Test
-    fun cancelingDeleteSwipeRestoresRow() {
+    fun swipeLeftSelectsThenRangeSelects() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
-                val task = DownloadTask(
-                    id = "cancel-swipe", url = "https://example.com/c.bin", fileName = "c.bin",
-                    dir = a.filesDir.absolutePath, totalBytes = 100, status = Status.COMPLETED,
-                    segments = mutableListOf(Segment(0, 0, 99, 100)),
-                )
+                val tasks = (0 until 5).map { i ->
+                    DownloadTask(
+                        id = "s$i", url = "https://example.com/$i.bin", fileName = "f$i.bin",
+                        dir = a.filesDir.absolutePath, totalBytes = 100, status = Status.COMPLETED,
+                        addedAt = 10_000L - i,
+                    )
+                }
                 synchronized(Repo.tasks) {
                     Repo.tasks.clear()
-                    Repo.tasks.add(task)
+                    Repo.tasks.addAll(tasks)
                 }
                 val rv = a.findViewById<RecyclerView>(R.id.recycler)
                 val ad = rv.adapter as DownloadsAdapter
                 ad.refresh()
                 layout(rv)
-                val row = rv.getChildAt(0) ?: throw AssertionError("列表项没有渲染")
-
-                // 模拟 ItemTouchHelper 把卡片平移出屏幕后的状态
-                row.translationX = -rv.width.toFloat()
+                val list = ad.filteredTasks()
+                assertEquals(5, list.size)
 
                 val m = MainActivity::class.java.getDeclaredMethod(
                     "performSwipe", DownloadTask::class.java, Int::class.javaPrimitiveType
                 )
                 m.isAccessible = true
-                m.invoke(a, task, ItemTouchHelper.LEFT)
 
-                val dialog = ShadowDialog.getLatestDialog() as? AlertDialog
-                    ?: throw AssertionError("没有弹出删除确认框")
-                dialog.getButton(DialogInterface.BUTTON_NEGATIVE).performClick()
-                ShadowLooper.idleMainLooper(600, TimeUnit.MILLISECONDS)
+                // 第一次左滑：只选中这一项
+                m.invoke(a, list[0], ItemTouchHelper.LEFT)
+                assertTrue("左滑后应进入多选", ad.selectionMode)
+                assertEquals("第一次左滑只选中一项", 1, ad.selectedIds.size)
+                assertEquals(list[0].id, ad.anchorId)
 
-                val now = rv.findViewHolderForAdapterPosition(0)?.itemView
-                    ?: throw AssertionError("卡片被移出列表")
-                assertEquals("取消删除后卡片应回到原位", 0f, now.translationX, 0.01f)
-                assertEquals("取消删除不应移除任务", 1, ad.itemCount)
+                // 第二次左滑第 4 项：0..3 全选
+                m.invoke(a, list[3], ItemTouchHelper.LEFT)
+                assertEquals("应区间选中 4 项", 4, ad.selectedIds.size)
+                assertTrue(
+                    "区间内的项没有全部选中",
+                    ad.selectedIds.containsAll(list.take(4).map { it.id })
+                )
+                assertTrue("区间外的项不应被选中", !ad.selectedIds.contains(list[4].id))
+                ShadowLooper.idleMainLooper(500, TimeUnit.MILLISECONDS)
             }
         }
     }
 
-    /** 已完成的任务没有「继续」动作，右滑应被禁用，避免滑走后卡片不回来 */
+    /** 列表项只保留左滑（选中）；右滑交给抽屉手势 */
     @Test
-    fun completedTaskOnlySupportsLeftSwipe() {
+    fun rowsOnlySupportLeftSwipe() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 val m = MainActivity::class.java
@@ -231,10 +233,9 @@ class ListInteractionTest {
                     dir = a.filesDir.absolutePath, status = Status.DOWNLOADING,
                 )
                 assertEquals(ItemTouchHelper.LEFT, m.invoke(a, done) as Int)
-                assertEquals(
-                    ItemTouchHelper.LEFT or ItemTouchHelper.RIGHT,
-                    m.invoke(a, running) as Int
-                )
+                assertEquals(ItemTouchHelper.LEFT, m.invoke(a, running) as Int)
+                val none: DownloadTask? = null
+                assertEquals(0, m.invoke(a, none) as Int)
             }
         }
     }

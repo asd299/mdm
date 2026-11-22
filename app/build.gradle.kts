@@ -11,8 +11,8 @@ android {
         applicationId = "com.misterdownloadmanager.mobile"
         minSdk = 24
         targetSdk = 34
-        versionCode = 10
-        versionName = "1.4.4"
+        versionCode = 13
+        versionName = "1.5.2"
     }
 
     testOptions {

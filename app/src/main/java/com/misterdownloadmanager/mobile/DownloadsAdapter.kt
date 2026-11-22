@@ -63,6 +63,10 @@ class DownloadsAdapter(
     var selectionMode = false
         private set
 
+    /** 区间选择的起点：第一次左滑选中的那一项 */
+    var anchorId: String? = null
+        private set
+
     /** 当前分类（侧边栏） */
     var category: Cat = Cat.ALL
         set(value) {
@@ -111,8 +115,10 @@ class DownloadsAdapter(
 
         val alive = snapshot.mapTo(HashSet()) { it.id }
         selectedIds.retainAll(alive)
+        if (anchorId != null && !selectedIds.contains(anchorId!!)) anchorId = selectedIds.firstOrNull()
         val hadSelection = selectionMode
         if (selectedIds.isEmpty()) selectionMode = false
+        if (!selectionMode) anchorId = null
         val selectionChanged = hadSelection != selectionMode
 
         val old = items.toList()
@@ -163,13 +169,49 @@ class DownloadsAdapter(
     fun toggle(task: DownloadTask) {
         if (selectedIds.contains(task.id)) selectedIds.remove(task.id) else selectedIds.add(task.id)
         selectionMode = selectedIds.isNotEmpty()
+        if (!selectionMode) {
+            anchorId = null
+        } else if (anchorId == null || !selectedIds.contains(anchorId!!)) {
+            anchorId = selectedIds.first()
+        }
         notifyDataSetChanged()
         onSelectionChanged()
+    }
+
+    fun isSelected(id: String): Boolean = selectedIds.contains(id)
+
+    /** 只选中这一项，并把它记为区间起点 */
+    fun selectOnly(task: DownloadTask) {
+        selectedIds.clear()
+        selectedIds.add(task.id)
+        anchorId = task.id
+        selectionMode = true
+        notifyDataSetChanged()
+        onSelectionChanged()
+    }
+
+    /**
+     * 从区间起点到 [toId] 全选（含两端）。
+     * @return 本次区间覆盖的行数，找不到返回 0
+     */
+    fun selectRange(fromId: String, toId: String): Int {
+        val a = items.indexOfFirst { it.id == fromId }
+        val b = items.indexOfFirst { it.id == toId }
+        if (a < 0 || b < 0) return 0
+        val lo = minOf(a, b)
+        val hi = maxOf(a, b)
+        for (i in lo..hi) selectedIds.add(items[i].id)
+        anchorId = fromId
+        selectionMode = true
+        notifyDataSetChanged()
+        onSelectionChanged()
+        return hi - lo + 1
     }
 
     fun selectAll() {
         selectedIds.addAll(items.map { it.id })
         selectionMode = selectedIds.isNotEmpty()
+        if (anchorId == null || !selectedIds.contains(anchorId!!)) anchorId = selectedIds.firstOrNull()
         notifyDataSetChanged()
         onSelectionChanged()
     }
@@ -177,6 +219,7 @@ class DownloadsAdapter(
     fun clearSelection() {
         selectedIds.clear()
         selectionMode = false
+        anchorId = null
         notifyDataSetChanged()
         onSelectionChanged()
     }

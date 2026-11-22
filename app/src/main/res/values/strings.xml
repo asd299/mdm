@@ -25,6 +25,7 @@
     <string name="all_paused">全部下载已完成或暂停</string>
     <string name="already_exists">已存在相同链接的任务</string>
     <string name="clear_finished">清除已完成</string>
+    <string name="clear_done_confirm">将移除 %1$d 个已完成或失败的任务记录，并删除应用内的文件副本。已保存到下载目录的文件不受影响。</string>
     <string name="saved_to">已保存到公共下载目录</string>
     <string name="dl_title">下载文件</string>
     <string name="dl_subtitle">确认链接与保存位置，即可开始下载</string>
@@ -119,7 +120,8 @@
     <string name="batch_resumed">已开始 %1$d 个任务</string>
     <string name="batch_none">所选任务中没有可操作项</string>
     <string name="cleared_count">已清除 %1$d 个任务</string>
-    <string name="swipe_delete">删除</string>
+    <string name="swipe_select">选择</string>
+    <string name="swipe_select_hint">已选中该项；再左滑另一项，可连同中间的项一起批量选中</string>
     <string name="empty_all">暂无下载任务\n点击右下角按钮添加链接</string>
     <string name="empty_running">没有正在进行的下载</string>
     <string name="empty_done">还没有已完成的文件</string>
