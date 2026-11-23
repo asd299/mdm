@@ -150,7 +150,15 @@ class DownloadsAdapter(
             override fun areContentsTheSame(oldPos: Int, newPos: Int): Boolean =
                 oldStates[oldPos] == stateOf(sorted[newPos])
 
-            override fun getChangePayload(oldPos: Int, newPos: Int): Any = PAYLOAD_PROGRESS
+            override fun getChangePayload(oldPos: Int, newPos: Int): Any? {
+                val before = oldStates[oldPos] ?: return null
+                val after = stateOf(sorted[newPos])
+                // 文件名/保存位置变化会影响标题、徽标、副标题，必须整行重绑；
+                // 只有进度类字段变化时才走轻量 payload
+                return if (before.fileName == after.fileName &&
+                    before.savedLocation == after.savedLocation
+                ) PAYLOAD_PROGRESS else null
+            }
         }, true)
 
         items.clear()
@@ -310,6 +318,17 @@ class DownloadsAdapter(
 
     override fun onBindViewHolder(holder: VH, position: Int) {
         val t = items[position]
+        bindHeader(holder, t)
+        resetViewState(holder)
+        if (holder.itemView.scaleX != 1f) {
+            holder.itemView.scaleX = 1f
+            holder.itemView.scaleY = 1f
+        }
+        bindProgress(holder, t)
+    }
+
+    /** 标题 / 类型徽标 / 链接：文件名可能在探测后变化，轻量绑定也要同步这一块 */
+    private fun bindHeader(holder: VH, t: DownloadTask) {
         val ctx = holder.itemView.context
 
         // 多选高亮
@@ -321,23 +340,14 @@ class DownloadsAdapter(
         }
         holder.ops.visibility = if (selectionMode) View.GONE else View.VISIBLE
 
-        // 文件类型徽标（drawable 复用，避免每次绑定都新建对象）
         val cat = if (t.fileName.isBlank()) Cat.OTHER else FileTypes.catOf(t.fileName)
         holder.iconBox.background = badgeDrawable(ctx, ContextCompat.getColor(ctx, FileTypes.colorOf(cat)))
-        holder.ext.text = if (t.fileName.isBlank()) "…" else FileTypes.badgeOf(t.fileName)
-
-        holder.name.text = t.fileName.ifBlank { ctx.getString(R.string.status_waiting) }
-        holder.url.text = t.url
+        val badge = if (t.fileName.isBlank()) "…" else FileTypes.badgeOf(t.fileName)
+        if (holder.ext.text.toString() != badge) holder.ext.text = badge
+        val label = t.fileName.ifBlank { ctx.getString(R.string.status_waiting) }
+        if (holder.name.text.toString() != label) holder.name.text = label
+        if (holder.url.text.toString() != t.url) holder.url.text = t.url
         holder.bound = t
-
-        // 复用视图可能残留按压缩放 / 滑动位移（ItemTouchHelper 默认不清理 translation）
-        resetViewState(holder)
-        if (holder.itemView.scaleX != 1f) {
-            holder.itemView.scaleX = 1f
-            holder.itemView.scaleY = 1f
-        }
-
-        bindProgress(holder, t)
     }
 
     override fun onBindViewHolder(holder: VH, position: Int, payloads: MutableList<Any>) {
@@ -346,7 +356,7 @@ class DownloadsAdapter(
             return
         }
         val t = items[position]
-        holder.bound = t
+        bindHeader(holder, t)
         resetViewState(holder)
         bindProgress(holder, t)
     }

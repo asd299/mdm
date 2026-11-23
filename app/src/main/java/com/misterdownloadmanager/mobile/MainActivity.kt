@@ -1643,10 +1643,13 @@ class MainActivity : AppCompatActivity() {
                     showAddDialog(url)
                 }
             }
+            Intent.ACTION_VIEW -> {
+                // 其它应用直接把链接丢过来（点链接选「Mister 下载管理器」）
+                intent.data?.toString()?.takeIf { it.startsWith("http") }?.let { showAddDialog(it) }
+            }
             ACTION_QUICK_ADD -> {
                 val url = intent.getStringExtra(Intent.EXTRA_TEXT) ?: return
-                startService(DownloadService.intent(this, DownloadService.ACTION_ADD, DownloadService.EXTRA_URL to url))
-                Toast.makeText(this, "已交给 Mister 下载管理器下载", Toast.LENGTH_SHORT).show()
+                AddCoordinator(this).submit(url, "", manual = false, startNow = true)
             }
         }
     }
@@ -1658,15 +1661,9 @@ class MainActivity : AppCompatActivity() {
 
     private fun showAddDialog(prefill: String) {
         val dlg = AddDownloadDialog.newInstance(prefill)
-        dlg.setOnSubmit { url, name, startNow ->
-            startService(
-                DownloadService.intent(this, DownloadService.ACTION_ADD).apply {
-                    putExtra(DownloadService.EXTRA_URL, url)
-                    putExtra(DownloadService.EXTRA_NAME, name)
-                    putExtra(DownloadService.EXTRA_START, startNow)
-                }
-            )
-            Toast.makeText(this, if (startNow) "已开始下载" else "已添加到队列", Toast.LENGTH_SHORT).show()
+        dlg.setOnSubmit { url, name, manual, startNow ->
+            // 先查重复链接/文件名，冲突时由 AddCoordinator 弹窗让用户选跳过、换名还是覆盖
+            AddCoordinator(this).submit(url, name, manual, startNow)
         }
         dlg.show(supportFragmentManager, "add")
     }

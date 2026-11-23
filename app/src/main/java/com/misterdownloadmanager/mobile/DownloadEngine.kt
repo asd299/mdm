@@ -264,8 +264,15 @@ class DownloadEngine(private val context: Context, private val scope: CoroutineS
             }
         }
 
-        if (task.fileName.isBlank() || task.fileName.startsWith("download_")) {
-            task.fileName = pickFileName(disposition, url, task)
+        // 手动指定的文件名优先；只有自动占位名（空 / download_xxxx.bin）才用服务器返回的名字
+        if (!task.manualName && (task.fileName.isBlank() || task.fileName.startsWith("download_"))) {
+            val guessed = pickFileName(disposition, url, task)
+            if (guessed != task.fileName) {
+                // 名字变了，旧的临时文件与分段进度都作废
+                if (task.fileName.isNotBlank()) File(task.dir, "${task.fileName}.mdm.part").delete()
+                task.fileName = guessed
+                task.segments.forEach { it.downloaded = 0 }
+            }
         }
 
         task.totalBytes = length
@@ -332,7 +339,7 @@ class DownloadEngine(private val context: Context, private val scope: CoroutineS
             if (!last.isNullOrBlank()) name = URLDecoder.decode(last, "UTF-8")
         }
         if (name.isNullOrBlank()) name = "download_${UUID.randomUUID().toString().take(6)}.bin"
-        return uniqueName(sanitize(name!!), File(task.dir))
+        return uniqueName(sanitize(name!!), File(task.dir), task.id)
     }
 
     private fun sanitize(name: String): String {
@@ -346,10 +353,19 @@ class DownloadEngine(private val context: Context, private val scope: CoroutineS
         return n
     }
 
-    private fun uniqueName(name: String, dir: File): String {
+    /** 自动探测出来的名字要避开：同目录下已有的 .part / 成品文件，以及列表里其它任务占用中的名字 */
+    private fun uniqueName(name: String, dir: File, selfId: String?): String {
         var candidate = name
         var i = 1
-        while (File(dir, "$candidate.mdm.part").exists() && i < 1000) {
+        while (i < 1000) {
+            val partTaken = File(dir, "$candidate.mdm.part").exists()
+            val fileTaken = File(dir, candidate).exists()
+            val taskTaken = synchronized(Repo.tasks) {
+                Repo.tasks.any {
+                    it.id != selfId && it.dir == dir.absolutePath && it.fileName.equals(candidate, true)
+                }
+            }
+            if (!partTaken && !fileTaken && !taskTaken) return candidate
             val dot = name.lastIndexOf('.')
             candidate = if (dot > 0) "${name.substring(0, dot)}($i)${name.substring(dot)}" else "$name($i)"
             i++

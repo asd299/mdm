@@ -41,6 +41,14 @@
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:mimeType="text/plain" />
             </intent-filter>
+            <!-- 拦截其它应用（浏览器、聊天工具）里的 http(s) 链接：点链接选 MDM 即弹下载确认窗 -->
+            <intent-filter>
+                <action android:name="android.intent.action.VIEW" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <category android:name="android.intent.category.BROWSABLE" />
+                <data android:scheme="http" />
+                <data android:scheme="https" />
+            </intent-filter>
             <intent-filter>
                 <action android:name="com.misterdownloadmanager.mobile.QUICK_ADD" />
                 <category android:name="android.intent.category.DEFAULT" />

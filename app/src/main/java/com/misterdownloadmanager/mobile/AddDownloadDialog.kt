@@ -132,7 +132,10 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
     }
 
     private var prefill: String = ""
-    private var onStart2: ((url: String, name: String, startNow: Boolean) -> Unit)? = null
+    private var onStart2: ((url: String, name: String, manualName: Boolean, startNow: Boolean) -> Unit)? = null
+
+    /** 探测到的服务器文件名：用户没改过就视为自动名，允许后续被真实名字替换 */
+    private var probeName: String? = null
 
     /** 窗口关闭（无论是否提交）时回调，供悬浮 PromptActivity 结束自身 */
     var onClosed: (() -> Unit)? = null
@@ -153,8 +156,8 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
         onClosed?.invoke()
     }
 
-    /** 提交回调：url、文件名（可空）、是否立即开始 */
-    fun setOnSubmit(cb: (url: String, name: String, startNow: Boolean) -> Unit) {
+    /** 提交回调：url、文件名（可空）、是否用户手动命名、是否立即开始 */
+    fun setOnSubmit(cb: (url: String, name: String, manualName: Boolean, startNow: Boolean) -> Unit) {
         onStart2 = cb
     }
 
@@ -214,7 +217,10 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
                     } else {
                         tvSize.text = "大小：未知"
                     }
-                    if (p.fileName != null && etName.text.isNullOrBlank()) etName.setText(p.fileName)
+                    if (p.fileName != null && etName.text.isNullOrBlank()) {
+                        probeName = p.fileName
+                        etName.setText(p.fileName)
+                    }
                 }
             }.start()
         }
@@ -234,7 +240,9 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
                 Toast.makeText(ctx, R.string.no_wifi, Toast.LENGTH_LONG).show()
             } else {
                 val name = etName.text?.toString()?.trim() ?: ""
-                onStart2?.invoke(url, name, startNow)
+                // 用户改过（或自己输入）的名字才锁定，自动填入的探测名仍允许被服务端真实名字替换
+                val manual = name.isNotEmpty() && name != probeName
+                onStart2?.invoke(url, name, manual, startNow)
                 dismiss()
             }
         }

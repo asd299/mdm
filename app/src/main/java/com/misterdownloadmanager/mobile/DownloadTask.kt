@@ -46,6 +46,8 @@ class DownloadTask(
     var savedUri: String? = null,
     /** 保存到所选目录失败的原因（失败时会回退到系统下载目录） */
     var saveError: String? = null,
+    /** 文件名是否由用户手动指定：为 true 时探测到的服务器文件名不会覆盖它 */
+    var manualName: Boolean = false,
 ) {
     val downloadedBytes: Long get() = if (segments.isEmpty()) 0 else segments.sumOf { it.downloaded }
     val partFile: File get() = File(dir, "$fileName.mdm.part")
@@ -67,6 +69,7 @@ class DownloadTask(
         .put("savedLocation", savedLocation)
         .put("savedUri", savedUri ?: "")
         .put("saveError", saveError ?: "")
+        .put("manualName", manualName)
         .put("segments", JSONArray().apply { segments.forEach { put(it.toJson()) } })
 
     companion object {
@@ -91,6 +94,7 @@ class DownloadTask(
                 savedLocation = o.optString("savedLocation", ""),
                 savedUri = o.optString("savedUri", "").ifEmpty { null },
                 saveError = o.optString("saveError", "").ifEmpty { null },
+                manualName = o.optBoolean("manualName", false),
             )
         }
     }

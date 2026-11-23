@@ -40,6 +40,8 @@ class DownloadService : Service() {
         const val EXTRA_ID = "id"
         const val EXTRA_NAME = "name"
         const val EXTRA_START = "start"
+        const val EXTRA_MANUAL = "manual"
+        const val EXTRA_ALLOW_DUP = "allowDup"
 
         fun intent(context: android.content.Context, action: String, extra: Pair<String, String>? = null): Intent {
             val i = Intent(context, DownloadService::class.java).setAction(action)
@@ -64,7 +66,13 @@ class DownloadService : Service() {
         startAsForeground()
         when (intent?.action) {
             ACTION_ADD -> intent.getStringExtra(EXTRA_URL)?.let {
-                addTask(it, intent.getStringExtra(EXTRA_NAME), intent.getBooleanExtra(EXTRA_START, true))
+                addTask(
+                    it,
+                    intent.getStringExtra(EXTRA_NAME),
+                    intent.getBooleanExtra(EXTRA_MANUAL, false),
+                    intent.getBooleanExtra(EXTRA_START, true),
+                    intent.getBooleanExtra(EXTRA_ALLOW_DUP, false),
+                )
             }
             ACTION_PAUSE -> intent.getStringExtra(EXTRA_ID)?.let { engine.pause(it) }
             ACTION_RESUME -> intent.getStringExtra(EXTRA_ID)?.let { id ->
@@ -95,14 +103,28 @@ class DownloadService : Service() {
         return START_STICKY
     }
 
-    private fun addTask(url: String, name: String? = null, startNow: Boolean = true) {
+    /**
+     * @param allowDup 为 true 时跳过 URL 去重（冲突已在 UI 层由用户确认过，比如覆盖/换名）
+     */
+    private fun addTask(
+        url: String,
+        name: String? = null,
+        manualName: Boolean = false,
+        startNow: Boolean = true,
+        allowDup: Boolean = false,
+    ) {
         val dir = DownloadEngine.downloadDir(this)
-        if (synchronized(Repo.tasks) { Repo.tasks.any { it.url == url && it.status != Status.FAILED } }) return
+        if (!allowDup && synchronized(Repo.tasks) {
+                Repo.tasks.any { it.url == url && it.status != Status.FAILED }
+            }
+        ) return
+        val trimmed = name?.trim().orEmpty()
         val task = DownloadTask(
             id = UUID.randomUUID().toString(),
             url = url,
-            fileName = name?.takeIf { it.isNotBlank() } ?: "",
+            fileName = trimmed,
             dir = dir,
+            manualName = manualName && trimmed.isNotEmpty(),
         )
         Repo.add(this, task)
         if (startNow) engine.start(task) { onIdleCheck() }
