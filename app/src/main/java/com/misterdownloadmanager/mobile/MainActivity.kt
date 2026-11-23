@@ -25,6 +25,7 @@ import android.view.Gravity
 import android.view.ViewConfiguration
 import android.view.View
 import android.view.ViewGroup
+import android.view.inputmethod.InputMethodManager
 import android.widget.EditText
 import android.widget.ImageView
 import android.text.TextUtils
@@ -72,6 +73,10 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvSortOrder: TextView
 
     private var searchView: SearchView? = null
+    private var searchItem: MenuItem? = null
+
+    /** 下拉刷新是否正在进行（不能用 isRefreshing 判断，手势触发时它已经是 true） */
+    private var refreshInFlight = false
 
     /** 「任务」维度筛选，默认全部 */
     private var statusCat: Cat = Cat.ALL
@@ -293,6 +298,8 @@ class MainActivity : AppCompatActivity() {
 
         when (ev.actionMasked) {
             MotionEvent.ACTION_DOWN -> {
+                // 点搜索框以外的地方 = 退出搜索（收起键盘、清空过滤、恢复标题）
+                collapseSearchOnOutsideTouch(ev)
                 drawerSwipeClaimed = false
                 drawerDownX = ev.x
                 drawerDownY = ev.y
@@ -332,6 +339,37 @@ class MainActivity : AppCompatActivity() {
             }
         }
         return super.dispatchTouchEvent(ev)
+    }
+
+    /** 搜索框展开时，点它外面的任意位置都退出搜索（列表、空白、按钮都算） */
+    private fun collapseSearchOnOutsideTouch(ev: MotionEvent) {
+        val sv = searchView ?: return
+        val item = searchItem ?: return
+        if (!item.isActionViewExpanded || sv.isIconified) return
+        if (isPointInside(sv, ev)) return
+        collapseSearch()
+    }
+
+    private fun isPointInside(view: View, ev: MotionEvent): Boolean {
+        if (view.width <= 0 || view.height <= 0) return false
+        val loc = IntArray(2)
+        view.getLocationOnScreen(loc)
+        return ev.rawX >= loc[0] && ev.rawX <= loc[0] + view.width &&
+            ev.rawY >= loc[1] && ev.rawY <= loc[1] + view.height
+    }
+
+    /** 退出搜索：收起键盘、清空关键字、把输入框收成图标 */
+    internal fun collapseSearch() {
+        val sv = searchView ?: return
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(sv.windowToken, 0)
+        sv.clearFocus()
+        if (sv.query?.isNotEmpty() == true) sv.setQuery("", false)
+        if (!sv.isIconified) sv.isIconified = true
+        searchItem?.collapseActionView()
+        adapter.query = ""
+        updateFilterTitle()
+        updateEmpty()
     }
 
     // ---------- 侧边栏 ----------
@@ -903,11 +941,15 @@ class MainActivity : AppCompatActivity() {
     /**
      * 下拉刷新：后台线程重新读取 tasks.json，把新出现的任务合并进来，
      * 再回主线程重绘列表与侧边栏计数。只合并数据，不动正在下载的任务。
+     *
+     * 注意：手势触发时 SwipeRefreshLayout 已经把 isRefreshing 置为 true，
+     * 所以这里不能用它做防重入判断，否则会直接 return、再也关不掉转圈。
      */
     private fun refreshList() {
-        if (swipeRefresh.isRefreshing) return
-        swipeRefresh.isRefreshing = true
+        if (refreshInFlight) return
+        refreshInFlight = true
         val started = SystemClock.elapsedRealtime()
+        swipeRefresh.isRefreshing = true
         Thread {
             val added = try {
                 Repo.reload(this)
@@ -917,11 +959,18 @@ class MainActivity : AppCompatActivity() {
             }
             handler.post {
                 if (isFinishing || isDestroyed) return@post
-                applyRefreshedList(added)
-                val elapsed = SystemClock.elapsedRealtime() - started
-                handler.postDelayed({
-                    if (!isFinishing && !isDestroyed) swipeRefresh.isRefreshing = false
-                }, (MIN_REFRESH_MS - elapsed).coerceAtLeast(0))
+                try {
+                    applyRefreshedList(added)
+                } catch (e: Throwable) {
+                    CrashHandler.recordSoftError(this, "刷新列表界面", e)
+                } finally {
+                    // 无论界面更新是否成功都要收起指示器
+                    val elapsed = SystemClock.elapsedRealtime() - started
+                    handler.postDelayed(
+                        { finishRefresh() },
+                        (MIN_REFRESH_MS - elapsed).coerceAtLeast(0)
+                    )
+                }
                 Toast.makeText(
                     this,
                     if (added > 0) getString(R.string.refresh_found, added)
@@ -930,6 +979,12 @@ class MainActivity : AppCompatActivity() {
                 ).show()
             }
         }.start()
+    }
+
+    /** 收起下拉刷新指示器并解除防重入锁 */
+    private fun finishRefresh() {
+        refreshInFlight = false
+        if (!isFinishing && !isDestroyed) swipeRefresh.isRefreshing = false
     }
 
     /** 主线程应用刷新结果（供下拉刷新与测试共用） */
@@ -1489,6 +1544,7 @@ class MainActivity : AppCompatActivity() {
         menu.findItem(R.id.action_search)?.icon?.setTint(iconTint)
 
         val searchItem = menu.findItem(R.id.action_search)
+        this.searchItem = searchItem
         val sv = searchItem.actionView as? SearchView ?: return true
         searchView = sv
 
@@ -1545,6 +1601,8 @@ class MainActivity : AppCompatActivity() {
     override fun onBackPressed() {
         when {
             drawer.isDrawerOpen(GravityCompat.START) -> drawer.closeDrawer(GravityCompat.START)
+            // 搜索展开时，返回键先退出搜索，而不是直接退出应用
+            searchItem?.isActionViewExpanded == true -> collapseSearch()
             adapter.selectionMode -> adapter.clearSelection()
             else -> super.onBackPressed()
         }
