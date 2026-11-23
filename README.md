@@ -138,8 +138,24 @@ python3 tools/gen_icon.py
 最后创建 GitHub Release 并附上 APK。
 
 ```bash
-git tag v1.6.0
+git tag -a v1.6.0 -m "Mister 下载管理器 v1.6.0"
 git push origin v1.6.0
+```
+
+标签已存在、想补发或重跑时，在 Actions 页面选择 **Release APK → Run workflow**，
+填入标签名（如 `v1.6.0`）即可，效果与推送标签一致。
+
+流水线跑完会在仓库里留一个 `ci/<标签>-<success|failure>` 标签：
+
+- 有标签 → 流水线确实执行过，用它判断成功还是失败；
+- 标签不存在 → 说明 Actions 没被触发（多为仓库 Settings → Actions 被禁用）。
+
+如果 CI 不可用，可本地构建后手动上传 APK 到 Release：
+
+```bash
+./gradlew assembleRelease
+./key/sign-apk.sh app/build/outputs/apk/release/app-release-unsigned.apk \
+  MisterDownloadManager-Android-v1.6.0.apk
 ```
 
 ## 许可
