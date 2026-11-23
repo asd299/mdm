@@ -28,32 +28,39 @@ jobs:
       RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout
+        id: checkout
         uses: actions/checkout@v4
         with:
           ref: ${{ env.RELEASE_TAG }}
           fetch-depth: 0
 
       - name: Set up JDK 17
+        id: java
         uses: actions/setup-java@v4
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Set up Gradle
+        id: gradle
         uses: gradle/actions/setup-gradle@v4
         with:
           gradle-version: "8.10.2"
 
       - name: Set up Android SDK
+        id: sdk
         uses: android-actions/setup-android@v3
 
       - name: Install SDK platform
+        id: platform
         run: sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null
 
       - name: Build release APK
+        id: build
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 
       - name: Sign APK
+        id: sign
         run: |
           set -euo pipefail
           OUT="MisterDownloadManager-Android-${RELEASE_TAG}.apk"
@@ -71,6 +78,7 @@ jobs:
           echo "APK=$OUT" >> "$GITHUB_ENV"
 
       - name: Publish GitHub Release
+        id: publish
         uses: softprops/action-gh-release@v2
         with:
           name: Mister 下载管理器 ${{ env.RELEASE_TAG }}
@@ -93,13 +101,17 @@ jobs:
             签名证书 SHA-256：`44:05:EE:13:56:C4:7A:DF:95:4F:A1:89:BB:BD:62:C0:45:32:8F:66:F7:98:A5:4C:8E:95:0A:70:BC:D1:9F:86`
 
       # 构建结果回写为轻量标签，便于在无 API 权限时确认流水线是否真的跑过
+      # 标签注释里带每个步骤的结果，失败时可直接定位是哪一步挂的
       - name: Report pipeline status
         if: always()
         continue-on-error: true
+        env:
+          STEPS_JSON: ${{ toJSON(steps) }}
         run: |
           set -e
           TAG="ci/${RELEASE_TAG}-${{ job.status }}"
+          SUMMARY="$(printf '%s' "$STEPS_JSON" | jq -r 'to_entries[] | "\(.key):\(.value.outcome // .value.conclusion // "?")"' | tr '\n' ' ')"
           git config user.name "github-actions[bot]"
           git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
-          git tag -f "$TAG" "$GITHUB_SHA"
+          git tag -f -a "$TAG" -m "status=${{ job.status }} ${SUMMARY}" "$GITHUB_SHA"
           git push -f origin "refs/tags/$TAG"
