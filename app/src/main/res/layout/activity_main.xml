@@ -463,6 +463,7 @@
         android:layout_gravity="start"
         android:background="@drawable/bg_nav"
         android:clipToOutline="true"
+        android:elevation="12dp"
         android:orientation="vertical">
 
         <include layout="@layout/drawer_content" />

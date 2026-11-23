@@ -186,6 +186,7 @@ class MainActivity : AppCompatActivity() {
             }
         })
         buildNav()
+        bindDrawerHeader()
         applyDrawerInset()
         watchImeVisibility()
 
@@ -447,10 +448,29 @@ class MainActivity : AppCompatActivity() {
     private fun applyDrawerInset() {
         ViewCompat.setOnApplyWindowInsetsListener(drawerPanel) { v, insets ->
             val top = insets.getInsets(WindowInsetsCompat.Type.statusBars()).top
-            v.setPadding(0, top, 0, 0)
+            val bottom = insets.getInsets(WindowInsetsCompat.Type.navigationBars()).bottom
+            // 顶部避开状态栏，底部留出导航栏：面板圆角与内容都不会被系统栏压住
+            v.setPadding(0, top, 0, bottom)
             insets
         }
         ViewCompat.requestApplyInsets(drawerPanel)
+    }
+
+    /**
+     * 侧边栏顶部概览卡：版本胶囊 + 上游基线，整卡点击进入关于页。
+     * 版本号形如 0.5.2.1001（上游版本号 + 迭代号），一眼能看出对的是哪一版上游。
+     */
+    private fun bindDrawerHeader() {
+        findViewById<TextView>(R.id.tvNavVersion).text = "v${BuildConfig.VERSION_NAME}"
+        findViewById<TextView>(R.id.tvNavUpstream).text = getString(
+            R.string.nav_upstream_line,
+            Changelog.upstream.version,
+            Changelog.upstream.released,
+        )
+        findViewById<View>(R.id.drawerHeadCard).setOnClickListener {
+            drawer.closeDrawer(GravityCompat.START)
+            showAbout()
+        }
     }
 
     private fun buildNav() {

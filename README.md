@@ -7,10 +7,13 @@
 <p align="center">
   iOS 风格界面 · 多线程分段下载 · 断点续传 · 自定义保存目录
   <br>
-  当前版本 <b>v1.7.1</b>（versionCode 19）
+  当前版本 <b>v0.5.2.1001</b>（versionCode 20，项目第一版）
 </p>
 
 基于开源项目 [anefzaoui/misterdownloadmanager](https://github.com/anefzaoui/misterdownloadmanager)（Mister Download Manager，纯 Rust 桌面下载管理器）的**核心设计思想**，使用 **Kotlin** 从零实现的 Android 版下载管理器。
+
+> **上游基线**：v0.5.2（2026-11-09 发布）· 最近核对 2026-11-24 · 对应本应用 **0.5.2.1001**（项目第一版）
+> 版本号规则与逐次核对记录见 [UPSTREAM.md](UPSTREAM.md)。
 
 ## 功能特性（对标原项目核心能力）
 
@@ -28,7 +31,7 @@
 | 自定义保存目录 | 侧边栏可改保存路径（SAF）；选择时立即试写校验，完成后按所选目录落盘 |
 | 保存位置可追溯 | 任务属性显示文件真正落地位置；写入失败会提示原因并支持「重新保存」 |
 | 不占应用数据 | 默认直写系统「下载」目录（Android 10+ 走 MediaStore pending），应用管理里只有几 KB 任务记录；卸载不删已下载文件 |
-| 关于页 | 应用信息、功能说明、致谢原项目与项目链接；版本更新说明自下而上弹出，内嵌崩溃日志入口 |
+| 关于页 | 应用信息、功能说明、致谢原项目；「上游项目」卡片记录仓库地址、参考版本、上游发布日期与本版核对日期；版本更新说明半屏弹出、点顶部展开全屏，内嵌崩溃日志入口 |
 | 下载历史持久化 | 任务列表保存为 JSON，重启后不丢失 |
 | 双层筛选 | 侧边栏「任务」与「按类型分类」是两个独立维度，默认都是「全部」，可组合成「已完成 + 视频」这类筛选，互不覆盖 |
 | 下拉刷新 | 列表下拉即重新读取任务记录并重绘，不打断正在下载的任务 |
@@ -38,9 +41,18 @@
 
 > 原项目的 BT 下载、yt-dlp 视频解析、浏览器扩展拦截等能力依赖桌面环境，本版本聚焦其最核心的 **多线程 HTTP 下载引擎 + 任务管理**，适合移动端使用。
 
+## 版本号与上游
+
+版本号 = **上游版本号 + 迭代号**：`0.5.2.1001` 表示基于上游 v0.5.2 的第 1 次迭代，
+之后为 `0.5.2.1002`、`0.5.2.1003` …；上游升版后从 `.1001` 重新计（如 `0.6.0.1001`）。
+
+`0.5.2.1001` 是本项目第一个版本。上游地址、基线版本、发布日期与每次核对的日期都记在
+[UPSTREAM.md](UPSTREAM.md)，应用内「关于 → 上游项目」展示同一份基线信息，便于跟进上游改动。
+
 ## 更新记录
 
-见 [CHANGELOG.md](CHANGELOG.md)，应用内「关于 → 版本更新说明」展示同一份内容。
+见 [CHANGELOG.md](CHANGELOG.md)，应用内「关于 → 版本更新说明」展示同一份内容；
+记录从项目第一版 `0.5.2.1001` 开始。
 
 ## 项目结构
 
@@ -81,7 +93,7 @@ tools/
 ./gradlew assembleRelease            # 产物：app/build/outputs/apk/release/
 ./key/sign-apk.sh \
   app/build/outputs/apk/release/app-release-unsigned.apk \
-  MisterDownloadManager-Android-v1.6.0.apk
+  MisterDownloadManager-Android-v0.5.2.1001.apk
 ```
 
 `local.properties` 需指向你的 SDK 路径（仓库未包含该文件，首次构建请由 Android Studio 生成或手动创建）。
@@ -152,12 +164,12 @@ python3 tools/gen_icon.py
 最后创建 GitHub Release 并附上 APK。
 
 ```bash
-git tag -a v1.6.0 -m "Mister 下载管理器 v1.6.0"
-git push origin v1.6.0
+git tag -a v0.5.2.1001 -m "Mister 下载管理器 v0.5.2.1001"
+git push origin v0.5.2.1001
 ```
 
 标签已存在、想补发或重跑时，在 Actions 页面选择 **Release APK → Run workflow**，
-填入标签名（如 `v1.6.0`）即可，效果与推送标签一致。
+填入标签名（如 `v0.5.2.1001`）即可，效果与推送标签一致。
 
 流水线跑完会在仓库里留一个 `ci/<标签>-<success|failure>` 标签：
 
@@ -169,7 +181,7 @@ git push origin v1.6.0
 ```bash
 ./gradlew assembleRelease
 ./key/sign-apk.sh app/build/outputs/apk/release/app-release-unsigned.apk \
-  MisterDownloadManager-Android-v1.6.0.apk
+  MisterDownloadManager-Android-v0.5.2.1001.apk
 ```
 
 ## 许可

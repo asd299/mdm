@@ -329,6 +329,18 @@ class ScreenshotTest {
                 a.findViewById<View>(R.id.rowChangelog).performClick()
                 org.robolectric.shadows.ShadowLooper.idleMainLooper()
                 val d = ShadowDialog.getLatestDialog() ?: return@onActivity
+                // Robolectric 不做真实布局，手动摆成半屏以接近真机首屏
+                val sheet = d.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
+                (sheet?.parent as? View)?.let { parent ->
+                    parent.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(2280, View.MeasureSpec.EXACTLY),
+                    )
+                    parent.layout(0, 0, 1080, 2280)
+                    (d as com.google.android.material.bottomsheet.BottomSheetDialog).behavior.state =
+                        com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HALF_EXPANDED
+                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                }
                 shot(d.window!!.decorView, 1080, 2280, "/tmp/shot_changelog.png")
                 d.dismiss()
             }

@@ -4,6 +4,7 @@ import android.content.Intent
 import android.net.Uri
 import android.os.Bundle
 import android.view.View
+import android.view.ViewGroup
 import android.widget.ImageView
 import android.widget.LinearLayout
 import android.widget.TextView
@@ -47,12 +48,20 @@ class AboutActivity : AppCompatActivity() {
             sub = getString(R.string.about_crash_log_sub),
         ) { CrashLogActivity.safeStart(this) }
 
-        findViewById<View>(R.id.btnProject).setOnClickListener {
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Changelog.PROJECT_URL)))
-            } catch (_: Exception) {
-                Toast.makeText(this, R.string.about_open_failed, Toast.LENGTH_SHORT).show()
-            }
+        findViewById<TextView>(R.id.tvUpstreamRepo).text =
+            Changelog.upstream.repo
+        findViewById<TextView>(R.id.tvUpstreamVersion).text =
+            getString(R.string.about_upstream_value, Changelog.upstream.version)
+        findViewById<TextView>(R.id.tvUpstreamReleased).text = Changelog.upstream.released
+        findViewById<TextView>(R.id.tvUpstreamChecked).text = Changelog.upstream.checkedAt
+        findViewById<View>(R.id.rowUpstreamRepo).setOnClickListener { openProject() }
+    }
+
+    private fun openProject() {
+        try {
+            startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(Changelog.PROJECT_URL)))
+        } catch (_: Exception) {
+            Toast.makeText(this, R.string.about_open_failed, Toast.LENGTH_SHORT).show()
         }
     }
 
@@ -72,6 +81,11 @@ class AboutActivity : AppCompatActivity() {
         val view = layoutInflater.inflate(R.layout.sheet_changelog, null)
         val list = view.findViewById<LinearLayout>(R.id.changeList)
 
+        // 标题下注明基线版本，方便对照上游改动
+        view.findViewById<TextView>(R.id.tvChangelogSub).text = getString(
+            R.string.changelog_subtitle, Changelog.upstream.version, Changelog.upstream.released
+        )
+
         Changelog.versions.forEachIndexed { index, version ->
             val item = layoutInflater.inflate(R.layout.item_changelog_version, list, false)
             item.findViewById<TextView>(R.id.tvVer).text = "v${version.name}"
@@ -85,19 +99,33 @@ class AboutActivity : AppCompatActivity() {
         }
 
         view.findViewById<View>(R.id.btnChangelogClose).setOnClickListener { sheet.dismiss() }
+
+        // 顶部（抓手 + 标题）点一下：半屏 ⇄ 全屏
+        view.findViewById<View>(R.id.sheetHeader).setOnClickListener {
+            val behavior = sheet.behavior
+            behavior.state =
+                if (behavior.state == BottomSheetBehavior.STATE_EXPANDED)
+                    BottomSheetBehavior.STATE_HALF_EXPANDED
+                else BottomSheetBehavior.STATE_EXPANDED
+        }
+
         sheet.setContentView(view)
-        sheet.behavior.state = BottomSheetBehavior.STATE_EXPANDED
-        sheet.behavior.skipCollapsed = true
+        // 关掉 fitToContents 才有「半屏」这一档
+        sheet.behavior.apply {
+            isFitToContents = false
+            halfExpandedRatio = 0.62f
+            expandedOffset = 0
+            skipCollapsed = true
+        }
+        // 窗口背景透明，圆角才不会被方形白底盖住
+        sheet.window?.setBackgroundDrawable(
+            android.graphics.drawable.ColorDrawable(android.graphics.Color.TRANSPARENT)
+        )
         sheet.show()
 
-        // 面板最多占屏幕 78%，版本再多也只在面板内部滚动
-        sheet.setOnShowListener {
-            val bottomSheet = sheet.findViewById<View>(
-                com.google.android.material.R.id.design_bottom_sheet
-            ) ?: return@setOnShowListener
-            val params = bottomSheet.layoutParams ?: return@setOnShowListener
-            params.height = (resources.displayMetrics.heightPixels * 0.78f).toInt()
-            bottomSheet.layoutParams = params
-        }
+        // 面板最高 82% 屏高；默认停在约半屏，点顶部拉满
+        val full = (resources.displayMetrics.heightPixels * 0.82f).toInt()
+        sheet.window?.setLayout(ViewGroup.LayoutParams.MATCH_PARENT, full)
+        sheet.behavior.state = BottomSheetBehavior.STATE_HALF_EXPANDED
     }
 }

@@ -205,9 +205,18 @@
     <string name="about_open_failed">没有可以打开链接的应用</string>
     <string name="about_footer">用 Kotlin 从零实现 · 数据仅保存在本机</string>
     <string name="changelog_title">版本更新说明</string>
-    <string name="changelog_subtitle">从新到旧，记录每个版本的变化</string>
+    <string name="changelog_subtitle">基于上游 v%1$s · %2$s 发布</string>
     <string name="changelog_current">当前版本</string>
     <string name="changelog_close">关闭</string>
+    <string name="nav_upstream_line">上游 v%1$s · %2$s</string>
+    <string name="about_section_upstream">上游项目</string>
+    <string name="about_upstream_repo">仓库地址</string>
+    <string name="about_upstream_version">参考版本</string>
+    <string name="about_upstream_released">上游发布日期</string>
+    <string name="about_upstream_checked">本版核对日期</string>
+    <string name="about_upstream_value">v%1$s</string>
+    <string name="about_upstream_hint">版本号 = 上游版本号 + 迭代号（.1001 起）。上游升版后从 .1001 重新计，完整核对记录见仓库 UPSTREAM.md。</string>
+
 
     <!-- 添加任务的重复检测 -->
     <string name="conflict_title">发现重复任务</string>

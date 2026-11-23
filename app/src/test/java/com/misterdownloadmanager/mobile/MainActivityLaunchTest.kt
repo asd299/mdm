@@ -26,9 +26,9 @@ class MainActivityLaunchTest {
         }
     }
 
-    /** 侧边栏顶部只剩统计卡；图标 / 名称 / 版本已移到关于页 */
+    /** 侧边栏顶部概览卡：图标 / 名称 / 版本胶囊 / 上游基线 / 三列统计都在，且整卡可点 */
     @Test
-    fun drawerHeaderKeepsOnlyStats() {
+    fun drawerHeaderShowsBrandAndStats() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { a ->
                 val panel = a.findViewById<View>(R.id.drawerPanel)
@@ -41,14 +41,25 @@ class MainActivityLaunchTest {
                 val statTasks = a.findViewById<TextView>(R.id.tvStatTasks)
                 val statDone = a.findViewById<TextView>(R.id.tvStatDone)
                 val statSize = a.findViewById<TextView>(R.id.tvStatSize)
+                val version = a.findViewById<TextView>(R.id.tvNavVersion)
+                val upstream = a.findViewById<TextView>(R.id.tvNavUpstream)
+                val icon = a.findViewById<View>(R.id.ivNavIcon)
+                val card = a.findViewById<View>(R.id.drawerHeadCard)
 
                 assertEquals(View.VISIBLE, statTasks.visibility)
                 assertEquals(View.VISIBLE, statDone.visibility)
                 assertEquals(View.VISIBLE, statSize.visibility)
+                assertEquals(View.VISIBLE, icon.visibility)
+
+                assertEquals("v${BuildConfig.VERSION_NAME}", version.text.toString())
+                assertTrue("上游基线未写入", upstream.text.toString().contains(Changelog.upstream.version))
+                assertTrue("上游日期未写入", upstream.text.toString().contains(Changelog.upstream.released))
+                assertTrue("整卡应可点进关于页", card.isClickable)
 
                 // 头部必须真的占据屏幕顶部的可见区域
                 assertTrue("统计卡片高度异常：${statTasks.height}", statTasks.height > 0)
                 assertTrue("统计卡片未显示在顶部：${statTasks.top}", statTasks.top < 400)
+                assertTrue("概览卡顶部留白过多：${card.top}", card.top < 160)
             }
         }
     }

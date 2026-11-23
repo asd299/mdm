@@ -150,6 +150,172 @@
                     android:textSize="13sp" />
             </LinearLayout>
 
+            <!-- 上游项目：地址 / 参考版本 / 日期，便于跟进原项目变动 -->
+            <TextView
+                android:layout_width="wrap_content"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="22dp"
+                android:layout_marginBottom="7dp"
+                android:text="@string/about_section_upstream"
+                android:textColor="@color/ios_label_2"
+                android:textSize="12sp" />
+
+            <LinearLayout
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:background="@drawable/bg_ios_card"
+                android:orientation="vertical">
+
+                <LinearLayout
+                    android:id="@+id/rowUpstreamRepo"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:background="?attr/selectableItemBackground"
+                    android:clickable="true"
+                    android:focusable="true"
+                    android:gravity="center_vertical"
+                    android:minHeight="58dp"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingTop="10dp"
+                    android:paddingEnd="14dp"
+                    android:paddingBottom="10dp">
+
+                    <LinearLayout
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:orientation="vertical">
+
+                        <TextView
+                            android:layout_width="wrap_content"
+                            android:layout_height="wrap_content"
+                            android:text="@string/about_upstream_repo"
+                            android:textColor="@color/ios_label_2"
+                            android:textSize="12sp" />
+
+                        <TextView
+                            android:id="@+id/tvUpstreamRepo"
+                            android:layout_width="match_parent"
+                            android:layout_height="wrap_content"
+                            android:layout_marginTop="2dp"
+                            android:maxLines="1"
+                            android:textColor="@color/ios_blue"
+                            android:textSize="14sp" />
+                    </LinearLayout>
+
+                    <ImageView
+                        android:layout_width="15dp"
+                        android:layout_height="15dp"
+                        android:layout_marginStart="4dp"
+                        android:contentDescription="@string/about_section_upstream"
+                        android:src="@drawable/ic_chevron_right"
+                        app:tint="@color/ios_label_3" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/ios_separator" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/about_upstream_version"
+                        android:textColor="@color/ios_label"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvUpstreamVersion"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/ios_label_2"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/ios_separator" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/about_upstream_released"
+                        android:textColor="@color/ios_label"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvUpstreamReleased"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/ios_label_2"
+                        android:textSize="13sp" />
+                </LinearLayout>
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="16dp"
+                    android:background="@color/ios_separator" />
+
+                <LinearLayout
+                    android:layout_width="match_parent"
+                    android:layout_height="46dp"
+                    android:gravity="center_vertical"
+                    android:orientation="horizontal"
+                    android:paddingStart="16dp"
+                    android:paddingEnd="16dp">
+
+                    <TextView
+                        android:layout_width="0dp"
+                        android:layout_height="wrap_content"
+                        android:layout_weight="1"
+                        android:text="@string/about_upstream_checked"
+                        android:textColor="@color/ios_label"
+                        android:textSize="14sp" />
+
+                    <TextView
+                        android:id="@+id/tvUpstreamChecked"
+                        android:layout_width="wrap_content"
+                        android:layout_height="wrap_content"
+                        android:textColor="@color/ios_label_2"
+                        android:textSize="13sp" />
+                </LinearLayout>
+            </LinearLayout>
+
+            <TextView
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:layout_marginStart="14dp"
+                android:layout_marginTop="7dp"
+                android:layout_marginEnd="14dp"
+                android:lineSpacingExtra="3dp"
+                android:text="@string/about_upstream_hint"
+                android:textColor="@color/ios_label_2"
+                android:textSize="11sp" />
+
             <!-- 致谢 -->
             <TextView
                 android:layout_width="wrap_content"
@@ -169,7 +335,7 @@
                 android:paddingStart="16dp"
                 android:paddingTop="16dp"
                 android:paddingEnd="16dp"
-                android:paddingBottom="14dp">
+                android:paddingBottom="16dp">
 
                 <TextView
                     android:layout_width="match_parent"
@@ -178,19 +344,6 @@
                     android:text="@string/about_credit_body"
                     android:textColor="@color/ios_label"
                     android:textSize="13sp" />
-
-                <TextView
-                    android:id="@+id/btnProject"
-                    android:layout_width="match_parent"
-                    android:layout_height="46dp"
-                    android:layout_marginTop="12dp"
-                    android:background="@drawable/bg_ios_input"
-                    android:gravity="center_vertical"
-                    android:paddingStart="14dp"
-                    android:paddingEnd="14dp"
-                    android:text="@string/about_project_owner"
-                    android:textColor="@color/ios_blue"
-                    android:textSize="14sp" />
             </LinearLayout>
 
             <TextView

@@ -2,63 +2,74 @@
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/ios_card"
+    android:background="@drawable/bg_sheet_top"
     android:orientation="vertical"
     android:paddingBottom="10dp">
 
-    <!-- iOS 抓手 -->
-    <View
-        android:layout_width="36dp"
-        android:layout_height="5dp"
-        android:layout_gravity="center_horizontal"
-        android:layout_marginTop="8dp"
-        android:background="@drawable/bg_sheet_handle" />
-
+    <!-- 顶部：抓手 + 标题，点一下在半屏与全屏之间切换 -->
     <LinearLayout
+        android:id="@+id/sheetHeader"
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal"
-        android:paddingStart="20dp"
-        android:paddingTop="16dp"
-        android:paddingEnd="14dp"
-        android:paddingBottom="6dp">
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:orientation="vertical">
+
+        <!-- iOS 抓手 -->
+        <View
+            android:layout_width="36dp"
+            android:layout_height="5dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_sheet_handle" />
 
         <LinearLayout
-            android:layout_width="0dp"
+            android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:layout_weight="1"
-            android:orientation="vertical">
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingTop="16dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="6dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/changelog_title"
+                    android:textColor="@color/ios_label"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvChangelogSub"
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:textColor="@color/ios_label_2"
+                    android:textSize="12sp" />
+            </LinearLayout>
 
             <TextView
+                android:id="@+id/btnChangelogClose"
                 android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/changelog_title"
-                android:textColor="@color/ios_label"
-                android:textSize="20sp"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_ios_input"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/changelog_close"
+                android:textColor="@color/ios_blue"
+                android:textSize="14sp"
                 android:textStyle="bold" />
-
-            <TextView
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="3dp"
-                android:text="@string/changelog_subtitle"
-                android:textColor="@color/ios_label_2"
-                android:textSize="12sp" />
         </LinearLayout>
-
-        <TextView
-            android:id="@+id/btnChangelogClose"
-            android:layout_width="wrap_content"
-            android:layout_height="36dp"
-            android:background="@drawable/bg_ios_input"
-            android:gravity="center"
-            android:paddingStart="16dp"
-            android:paddingEnd="16dp"
-            android:text="@string/changelog_close"
-            android:textColor="@color/ios_blue"
-            android:textSize="14sp"
-            android:textStyle="bold" />
     </LinearLayout>
 
     <androidx.core.widget.NestedScrollView
