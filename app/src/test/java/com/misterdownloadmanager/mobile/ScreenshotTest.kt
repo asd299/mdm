@@ -147,6 +147,8 @@ class ScreenshotTest {
                     .openDrawer(androidx.core.view.GravityCompat.START)
                 val panel = a.findViewById<View>(R.id.drawerPanel)
                 shot(panel, 924, 2280, "/tmp/shot_drawer.png")
+                // 整屏：带遮罩看面板右侧圆角与阴影是否成立
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_drawer_full.png")
                 // 滚动到底部，检查内联设置与更多分组
                 val scroll = a.findViewById<android.widget.ScrollView>(R.id.drawerScroll)
                 shot(panel, 924, 2280, "/tmp/shot_drawer_scrolled.png")
