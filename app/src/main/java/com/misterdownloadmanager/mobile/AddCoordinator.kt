@@ -49,55 +49,56 @@ class AddCoordinator(
             lines += activity.getString(R.string.conflict_file_on_disk, conflict.fileName)
         }
 
-        val options = arrayOf(
-            activity.getString(R.string.conflict_skip),
-            activity.getString(R.string.conflict_rename),
-            activity.getString(R.string.conflict_overwrite),
-        )
+        val view = android.view.LayoutInflater.from(activity)
+            .inflate(R.layout.dialog_conflict, null)
+        view.findViewById<android.widget.TextView>(R.id.tvConflictMsg).text = lines.joinToString("\n")
 
-        MaterialAlertDialogBuilder(activity)
-            .setTitle(R.string.conflict_title)
-            .setMessage(lines.joinToString("\n"))
-            .setItems(options) { _, which ->
-                when (which) {
-                    0 -> {
-                        Toast.makeText(activity, R.string.conflict_skipped, Toast.LENGTH_SHORT).show()
-                        onDone?.invoke()
-                    }
+        val dialog = MaterialAlertDialogBuilder(activity).setView(view).create()
+        dialog.setOnCancelListener { onDone?.invoke() }
 
-                    1 -> {
-                        val tasks = synchronized(Repo.tasks) { Repo.tasks.toList() }
-                        val base = conflict.fileName.ifBlank { guessName(url) }
-                        val fresh = ConflictChecker.numberedName(base, tasks, dir)
-                        enqueue(url, fresh, manual = true, startNow = startNow)
-                    }
+        view.findViewById<android.view.View>(R.id.btnSkip).setOnClickListener {
+            Toast.makeText(activity, R.string.conflict_skipped, Toast.LENGTH_SHORT).show()
+            dialog.dismiss()
+            onDone?.invoke()
+        }
 
-                    else -> {
-                        // 覆盖：先删掉旧任务（连同它的 .part / 成品），再按原文件名重新下载
-                        val old = conflict.linkTask ?: conflict.nameTask
-                        if (old != null) {
-                            // 已经保存到系统下载目录 / SAF 目录的副本，尽力一起删掉
-                            old.savedUri?.let { uri ->
-                                try {
-                                    activity.contentResolver.delete(android.net.Uri.parse(uri), null, null)
-                                } catch (_: Exception) {
-                                }
-                            }
-                            activity.startService(
-                                DownloadService.intent(
-                                    activity,
-                                    DownloadService.ACTION_DELETE,
-                                    DownloadService.EXTRA_ID to old.id,
-                                )
-                            )
-                        }
-                        enqueue(url, conflict.fileName, manual, startNow)
+        view.findViewById<android.view.View>(R.id.btnRename).setOnClickListener {
+            val tasks = synchronized(Repo.tasks) { Repo.tasks.toList() }
+            val base = conflict.fileName.ifBlank { guessName(url) }
+            val fresh = ConflictChecker.numberedName(base, tasks, dir)
+            dialog.dismiss()
+            enqueue(url, fresh, manual = true, startNow = startNow)
+        }
+
+        view.findViewById<android.view.View>(R.id.btnOverwrite).setOnClickListener {
+            // 覆盖：先删掉旧任务（连同它的 .part / 成品），再按原文件名重新下载
+            val old = conflict.linkTask ?: conflict.nameTask
+            if (old != null) {
+                // 已经保存到系统下载目录 / SAF 目录的副本，尽力一起删掉
+                old.savedUri?.let { uri ->
+                    try {
+                        activity.contentResolver.delete(android.net.Uri.parse(uri), null, null)
+                    } catch (_: Exception) {
                     }
                 }
+                activity.startService(
+                    DownloadService.intent(
+                        activity,
+                        DownloadService.ACTION_DELETE,
+                        DownloadService.EXTRA_ID to old.id,
+                    )
+                )
             }
-            .setNegativeButton(android.R.string.cancel) { _, _ -> onDone?.invoke() }
-            .setOnCancelListener { onDone?.invoke() }
-            .show()
+            dialog.dismiss()
+            enqueue(url, conflict.fileName, manual, startNow)
+        }
+
+        view.findViewById<android.view.View>(R.id.btnCancelConflict).setOnClickListener {
+            dialog.dismiss()
+            onDone?.invoke()
+        }
+
+        dialog.show()
     }
 
     private fun enqueue(url: String, name: String, manual: Boolean, startNow: Boolean) {

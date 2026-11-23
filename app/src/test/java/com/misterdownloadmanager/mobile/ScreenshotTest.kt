@@ -261,4 +261,39 @@ class ScreenshotTest {
             shot(d.window!!.decorView, 1080, 2280, "/tmp/shot_sheet.png")
         }
     }
+
+    /** 添加重复任务时的冲突选择框 */
+    @Test
+    fun renderConflict() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val dir = a.filesDir.absolutePath
+                synchronized(Repo.tasks) {
+                    Repo.tasks.clear()
+                    Repo.tasks.add(
+                        DownloadTask(
+                            id = "dup", url = "https://example.com/Movies/Interstellar.2014.2160p.mkv",
+                            fileName = "Interstellar.2014.2160p.mkv", dir = dir,
+                            totalBytes = 8_000_000_000, status = Status.DOWNLOADING,
+                            segments = mutableListOf(Segment(0, 0, 8_000_000_000, 3_100_000_000)),
+                        )
+                    )
+                }
+                AddCoordinator(a).submit(
+                    "https://example.com/Movies/Interstellar.2014.2160p.mkv",
+                    "Interstellar.2014.2160p.mkv", manual = true, startNow = true,
+                )
+                val d = ShadowDialog.getLatestDialog() ?: return@onActivity
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val decor = d.window!!.decorView
+                decor.measure(
+                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.AT_MOST),
+                )
+                println("CONFLICT_H ${decor.measuredHeight}")
+                shot(decor, 1080, decor.measuredHeight.coerceAtLeast(600), "/tmp/shot_conflict.png")
+                d.dismiss()
+            }
+        }
+    }
 }

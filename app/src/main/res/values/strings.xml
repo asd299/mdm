@@ -197,7 +197,8 @@
     <string name="conflict_file_on_disk">保存目录中已存在同名文件：%1$s</string>
     <string name="conflict_skip">跳过下载</string>
     <string name="conflict_rename">换个文件名（自动编号）</string>
-    <string name="conflict_overwrite">覆盖下载（删除原文件后重新下载）</string>
+    <string name="conflict_overwrite">覆盖下载（删除原文件）</string>
+    <string name="conflict_cancel">取消</string>
     <string name="conflict_skipped">已跳过，未添加任务</string>
     <string name="add_started">已开始下载</string>
     <string name="add_queued">已添加到队列</string>
