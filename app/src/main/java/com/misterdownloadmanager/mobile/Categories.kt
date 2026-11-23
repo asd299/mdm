@@ -22,13 +22,20 @@ enum class Cat(@StringRes val titleRes: Int, @StringRes val emptyRes: Int) {
         get() = this == RUNNING || this == DONE || this == PAUSED || this == FAILED || this == ALL
 }
 
-/** 排序方式 */
+/** 排序方式（方向由列表的「降序 / 顺序」开关单独控制） */
 enum class SortMode(@StringRes val labelRes: Int) {
-    TIME_DESC(R.string.sort_time_desc),
-    TIME_ASC(R.string.sort_time_asc),
+    TIME(R.string.sort_time),
     NAME(R.string.sort_name),
     SIZE(R.string.sort_size),
-    STATUS(R.string.sort_status)
+    STATUS(R.string.sort_status);
+
+    companion object {
+        /** 兼容旧版本持久化的 TIME_DESC / TIME_ASC */
+        fun fromPref(raw: String?): SortMode = when (raw) {
+            "TIME_DESC", "TIME_ASC" -> TIME
+            else -> values().firstOrNull { it.name == raw } ?: TIME
+        }
+    }
 }
 
 /** 文件类型识别与分类 */

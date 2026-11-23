@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 排序选项文字颜色：选中蓝底白字 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_selected="true" android:color="@color/white" />
+    <item android:color="@color/ios_label" />
+</selector>

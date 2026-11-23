@@ -86,7 +86,16 @@ class DownloadsAdapter(
         }
 
     /** 排序方式 */
-    var sortMode: SortMode = SortMode.TIME_DESC
+    var sortMode: SortMode = SortMode.TIME
+        set(value) {
+            if (field != value) {
+                field = value
+                refresh()
+            }
+        }
+
+    /** true = 顺序（升序），false = 降序；作用于所有排序方式 */
+    var sortAscending: Boolean = false
         set(value) {
             if (field != value) {
                 field = value
@@ -105,13 +114,13 @@ class DownloadsAdapter(
             FileTypes.matches(category, t) &&
                 (q.isEmpty() || t.fileName.contains(q, true) || t.url.contains(q, true))
         }
-        val sorted = when (sortMode) {
-            SortMode.TIME_DESC -> filtered.sortedByDescending { it.addedAt }
-            SortMode.TIME_ASC -> filtered.sortedBy { it.addedAt }
+        val base = when (sortMode) {
+            SortMode.TIME -> filtered.sortedBy { it.addedAt }
             SortMode.NAME -> filtered.sortedBy { it.fileName.lowercase() }
-            SortMode.SIZE -> filtered.sortedByDescending { if (it.totalBytes > 0) it.totalBytes else it.downloadedBytes }
+            SortMode.SIZE -> filtered.sortedBy { if (it.totalBytes > 0) it.totalBytes else it.downloadedBytes }
             SortMode.STATUS -> filtered.sortedBy { statusOrder(it.status) }
         }
+        val sorted = if (sortAscending) base else base.reversed()
 
         val alive = snapshot.mapTo(HashSet()) { it.id }
         selectedIds.retainAll(alive)

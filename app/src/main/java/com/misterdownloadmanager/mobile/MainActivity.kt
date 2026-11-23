@@ -20,11 +20,13 @@ import android.text.format.DateFormat
 import android.view.Menu
 import android.view.MenuItem
 import android.view.MotionEvent
+import android.view.Gravity
 import android.view.ViewConfiguration
 import android.view.View
 import android.view.ViewGroup
 import android.widget.EditText
 import android.widget.ImageView
+import android.text.TextUtils
 import android.widget.LinearLayout
 import android.widget.TextView
 import android.widget.Toast
@@ -61,10 +63,16 @@ class MainActivity : AppCompatActivity() {
     private lateinit var selectionBar: View
     private lateinit var recycler: RecyclerView
     private lateinit var largeTitle: TextView
+    private lateinit var actionRow: View
+    private lateinit var sortPanel: View
+    private lateinit var sortOptions: LinearLayout
+    private lateinit var tvSortOrder: TextView
 
     private var searchView: SearchView? = null
     private var cat: Cat = Cat.ALL
-    private var sortMode: SortMode = SortMode.TIME_DESC
+    private var sortMode: SortMode = SortMode.TIME
+    private var sortAscending = false
+    private var sortPanelOpen = false
 
     private val pickDir: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -166,12 +174,9 @@ class MainActivity : AppCompatActivity() {
         findViewById<TextView>(R.id.tvNavVersion).text =
             getString(R.string.version_label, BuildConfig.VERSION_NAME)
 
-        // 读取上次排序方式
-        sortMode = try {
-            SortMode.valueOf(prefs().getString("sort_mode", SortMode.TIME_DESC.name)!!)
-        } catch (_: Exception) {
-            SortMode.TIME_DESC
-        }
+        // 读取上次排序方式与方向（兼容旧版本的 TIME_DESC / TIME_ASC）
+        sortMode = SortMode.fromPref(prefs().getString("sort_mode", null))
+        sortAscending = prefs().getBoolean("sort_ascending", false)
 
         adapter = DownloadsAdapter(
             onPauseResume = { task -> onPauseResume(task) },
@@ -187,6 +192,7 @@ class MainActivity : AppCompatActivity() {
             onSelectionChanged = { updateSelectionUi() },
         )
         adapter.sortMode = sortMode
+        adapter.sortAscending = sortAscending
         adapter.category = cat
 
         recycler.layoutManager = LinearLayoutManager(this)
@@ -198,6 +204,14 @@ class MainActivity : AppCompatActivity() {
             ?.supportsChangeAnimations = false
         adapter.refresh()
         attachSwipe()
+        setupActionRow()
+
+        // 滚动列表时自动收起排序面板，避免长期占用屏幕
+        recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
+            override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
+                if (newState != RecyclerView.SCROLL_STATE_IDLE && sortPanelOpen) collapseSortPanel()
+            }
+        })
 
         findViewById<FloatingActionButton>(R.id.fab).setOnClickListener { showAddDialog("") }
 
@@ -390,6 +404,7 @@ class MainActivity : AppCompatActivity() {
         adapter.category = c
         setHeaderTitle(getString(c.titleRes))
         clearSearch()
+        if (sortPanelOpen) collapseSortPanel()
         updateEmpty()
         recycler.scrollToPosition(0)
         playListEntrance()
@@ -519,6 +534,120 @@ class MainActivity : AppCompatActivity() {
     }
 
     // ---------- 批量与清理 ----------
+
+    // ---------- 顶部操作行（暂停 / 继续 / 清除 / 排序） ----------
+
+    private fun setupActionRow() {
+        actionRow = findViewById(R.id.actionRow)
+        sortPanel = findViewById(R.id.sortPanel)
+        sortOptions = findViewById(R.id.sortOptions)
+        tvSortOrder = findViewById(R.id.tvSortOrder)
+
+        findViewById<View>(R.id.btnPauseAll).setOnClickListener { pauseAll() }
+        findViewById<View>(R.id.btnResumeAll).setOnClickListener { resumeAll() }
+        findViewById<View>(R.id.btnClearDone).setOnClickListener { clearFinished() }
+        findViewById<View>(R.id.btnSort).setOnClickListener { toggleSortPanel() }
+        tvSortOrder.setOnClickListener { setSortAscending(!sortAscending) }
+
+        buildSortOptions()
+        updateSortChip()
+    }
+
+    private fun dp(v: Int): Int = (v * resources.displayMetrics.density).toInt()
+
+    /** 排序方式选项：两列网格，选中为蓝底白字 */
+    private fun buildSortOptions() {
+        sortOptions.removeAllViews()
+        val modes = SortMode.values()
+        var row: LinearLayout? = null
+        modes.forEachIndexed { index, mode ->
+            if (index % 2 == 0) {
+                val r = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        ViewGroup.LayoutParams.MATCH_PARENT,
+                        ViewGroup.LayoutParams.WRAP_CONTENT
+                    ).apply { topMargin = if (index == 0) 0 else dp(8) }
+                }
+                sortOptions.addView(r)
+                row = r
+            }
+            val tv = TextView(this).apply {
+                text = getString(mode.labelRes)
+                gravity = Gravity.CENTER
+                textSize = 12f
+                isSingleLine = true
+                ellipsize = TextUtils.TruncateAt.END
+                setTextColor(
+                    ContextCompat.getColorStateList(this@MainActivity, R.color.sort_option_text)
+                )
+                background = ContextCompat.getDrawable(this@MainActivity, R.drawable.bg_sort_option)
+                isSelected = mode == sortMode
+                layoutParams = LinearLayout.LayoutParams(0, dp(36), 1f).apply {
+                    marginStart = dp(4)
+                    marginEnd = dp(4)
+                }
+                setOnClickListener { selectSortMode(mode) }
+            }
+            row?.addView(tv)
+        }
+    }
+
+    private fun selectSortMode(mode: SortMode) {
+        if (sortMode != mode) {
+            sortMode = mode
+            prefs().edit().putString("sort_mode", mode.name).apply()
+            adapter.sortMode = mode
+        }
+        updateSortSelection()
+        updateEmpty()
+    }
+
+    private fun updateSortSelection() {
+        val modes = SortMode.values()
+        var index = 0
+        for (r in 0 until sortOptions.childCount) {
+            val row = sortOptions.getChildAt(r) as? LinearLayout ?: continue
+            for (i in 0 until row.childCount) {
+                val tv = row.getChildAt(i) as? TextView ?: continue
+                tv.isSelected = modes.getOrNull(index) == sortMode
+                index++
+            }
+        }
+    }
+
+    private fun setSortAscending(asc: Boolean) {
+        sortAscending = asc
+        prefs().edit().putBoolean("sort_ascending", asc).apply()
+        adapter.sortAscending = asc
+        updateSortChip()
+    }
+
+    private fun updateSortChip() {
+        tvSortOrder.text = if (sortAscending) {
+            "↑ " + getString(R.string.sort_asc)
+        } else {
+            "↓ " + getString(R.string.sort_desc)
+        }
+    }
+
+    private fun toggleSortPanel() {
+        if (sortPanelOpen) collapseSortPanel() else expandSortPanel()
+    }
+
+    private fun expandSortPanel() {
+        if (sortPanelOpen) return
+        sortPanelOpen = true
+        animateSection(sortPanel, true)
+        findViewById<View>(R.id.btnSort).isSelected = true
+    }
+
+    private fun collapseSortPanel() {
+        if (!sortPanelOpen) return
+        sortPanelOpen = false
+        animateSection(sortPanel, false)
+        findViewById<View>(R.id.btnSort).isSelected = false
+    }
 
     private fun pauseAll() {
         startService(DownloadService.intent(this, DownloadService.ACTION_PAUSE_ALL))
@@ -984,6 +1113,9 @@ class MainActivity : AppCompatActivity() {
         val sel = adapter.selectionMode
         selectionBar.visibility = if (sel) View.VISIBLE else View.GONE
         fab.visibility = if (sel) View.GONE else View.VISIBLE
+        // 多选时让位给底部批量操作条
+        actionRow.visibility = if (sel) View.GONE else View.VISIBLE
+        if (sel && sortPanelOpen) collapseSortPanel()
         setHeaderTitle(
             if (sel) {
                 getString(R.string.selected_count, adapter.selectedIds.size)
@@ -1237,27 +1369,12 @@ class MainActivity : AppCompatActivity() {
         menuInflater.inflate(R.menu.menu_main, menu)
 
         val iconTint = ContextCompat.getColor(this, R.color.ios_blue)
-        listOf(
-            R.id.action_sort, R.id.action_search,
-            R.id.action_pause_all, R.id.action_resume_all, R.id.action_clear_done,
-        ).forEach { id -> menu.findItem(id)?.icon?.setTint(iconTint) }
+        menu.findItem(R.id.action_search)?.icon?.setTint(iconTint)
 
         val searchItem = menu.findItem(R.id.action_search)
         val sv = searchItem.actionView as? SearchView ?: return true
         searchView = sv
 
-        // 搜索框展开需要整条工具栏：临时收起其它图标，避免被挤进「三点」溢出菜单
-        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
-            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
-                setListActionsVisible(false)
-                return true
-            }
-
-            override fun onMenuItemActionCollapse(item: MenuItem): Boolean {
-                setListActionsVisible(!adapter.selectionMode)
-                return true
-            }
-        })
         sv.queryHint = getString(R.string.search_hint)
         val searchTint = ContextCompat.getColor(this, R.color.ios_label_2)
         sv.findViewById<ImageView>(androidx.appcompat.R.id.search_button)?.setColorFilter(searchTint)
@@ -1291,65 +1408,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     override fun onPrepareOptionsMenu(menu: Menu): Boolean {
-        // 搜索展开时只剩搜索框；多选时交给底部批量条
-        val compact = adapter.selectionMode || searchView?.isIconified == false
-        listOf(
-            R.id.action_search, R.id.action_sort,
-            R.id.action_pause_all, R.id.action_resume_all, R.id.action_clear_done,
-        ).forEach { id ->
-            menu.findItem(id)?.isVisible = if (id == R.id.action_search) {
-                !adapter.selectionMode
-            } else {
-                !compact
-            }
-        }
+        // 多选时交给底部批量条，搜索入口让位
+        menu.findItem(R.id.action_search)?.isVisible = !adapter.selectionMode
         return super.onPrepareOptionsMenu(menu)
     }
 
-    /** 只控制搜索两侧的列表操作 / 排序图标 */
-    private fun setListActionsVisible(visible: Boolean) {
-        val menu = toolbar.menu ?: return
-        listOf(R.id.action_sort, R.id.action_pause_all, R.id.action_resume_all, R.id.action_clear_done)
-            .forEach { menu.findItem(it)?.isVisible = visible }
-    }
-
-    override fun onOptionsItemSelected(item: MenuItem): Boolean {
-        return when (item.itemId) {
-            R.id.action_sort -> {
-                showSortDialog()
-                true
-            }
-            R.id.action_pause_all -> {
-                pauseAll()
-                true
-            }
-            R.id.action_resume_all -> {
-                resumeAll()
-                true
-            }
-            R.id.action_clear_done -> {
-                clearFinished()
-                true
-            }
-            else -> super.onOptionsItemSelected(item)
-        }
-    }
-
-    private fun showSortDialog() {
-        val modes = SortMode.values()
-        val labels = modes.map { getString(it.labelRes) }.toTypedArray()
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.sort)
-            .setSingleChoiceItems(labels, modes.indexOf(sortMode)) { d, which ->
-                sortMode = modes[which]
-                prefs().edit().putString("sort_mode", sortMode.name).apply()
-                adapter.sortMode = sortMode
-                updateEmpty()
-                d.dismiss()
-            }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
-    }
+    override fun onOptionsItemSelected(item: MenuItem): Boolean = super.onOptionsItemSelected(item)
 
     private fun clearSearch() {
         searchView?.let {

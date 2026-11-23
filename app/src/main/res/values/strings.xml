@@ -108,8 +108,11 @@
     <string name="search">搜索</string>
     <string name="search_hint">搜索文件名或链接</string>
     <string name="sort">排序</string>
-    <string name="sort_time_desc">添加时间（最新优先）</string>
-    <string name="sort_time_asc">添加时间（最早优先）</string>
+    <string name="sort_time">添加时间</string>
+    <string name="sort_panel_title">排序方式</string>
+    <string name="sort_desc">降序</string>
+    <string name="sort_asc">增序</string>
+    <string name="action_clear_short">清除</string>
     <string name="sort_name">文件名</string>
     <string name="sort_size">文件大小</string>
     <string name="sort_status">下载状态</string>
