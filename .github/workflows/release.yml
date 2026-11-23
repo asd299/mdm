@@ -30,6 +30,9 @@ jobs:
       - name: Set up Android SDK
         uses: android-actions/setup-android@v3
 
+      - name: Install SDK platform
+        run: sdkmanager "platforms;android-34" "build-tools;34.0.0" > /dev/null
+
       - name: Build release APK
         run: gradle :app:assembleRelease --no-daemon --stacktrace
 

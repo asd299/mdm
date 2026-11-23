@@ -15,13 +15,13 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <!-- 与桌面/应用信息使用同一个图标，换图标时自动同步 -->
+        <!-- 与桌面图标同一份图（squircle 位图，避免自适应图标在 ImageView 里被画成方形） -->
         <ImageView
             android:id="@+id/ivNavIcon"
             android:layout_width="46dp"
             android:layout_height="46dp"
             android:contentDescription="@string/app_name"
-            android:src="@mipmap/ic_launcher" />
+            android:src="@drawable/app_icon" />
 
         <LinearLayout
             android:layout_width="wrap_content"

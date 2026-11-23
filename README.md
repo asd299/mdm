@@ -59,6 +59,9 @@ docs/
 
 .github/workflows/
 └── release.yml            # 推送 v* 标签后自动构建、签名并发布 Release
+
+tools/
+└── gen_icon.py            # 生成应用图标（squircle / 各密度 / 圆形 / 界面用位图）
 ```
 
 ## 构建方法
@@ -119,7 +122,14 @@ docs/
 
 - 桌面 PNG：`mipmap-mdpi` ~ `mipmap-xxxhdpi`，另附圆形版本 `ic_launcher_round`
 - 自适应图标：`ic_launcher_background`（渐变层）+ `ic_launcher_foreground`（M 矢量，缩放到 66% 安全区）
-- 侧边栏顶部头像直接引用 `@mipmap/ic_launcher`，换图标时不会出现「桌面新、侧边栏旧」的不一致
+- 界面内图标：`drawable-nodpi/app_icon.png`，侧边栏顶部直接引用它——
+  自适应图标在普通 `ImageView` 里不会被系统裁成 squircle，必须用烘好的位图才不会「桌面圆角、侧边栏方块」
+
+图标由 [`tools/gen_icon.py`](tools/gen_icon.py) 一次生成（需要 `cairosvg`、`numpy`、`Pillow`）：
+
+```bash
+python3 tools/gen_icon.py
+```
 
 ## 发布
 
