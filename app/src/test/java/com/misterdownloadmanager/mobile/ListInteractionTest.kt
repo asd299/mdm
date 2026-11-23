@@ -71,68 +71,77 @@ class ListInteractionTest {
         }
     }
 
-    private fun claimed(a: MainActivity): Boolean {
-        val f = MainActivity::class.java.getDeclaredField("drawerSwipeClaimed")
-        f.isAccessible = true
-        return f.getBoolean(a)
+    private fun drawerOf(a: MainActivity): SwipeDrawerLayout = a.findViewById(R.id.drawer)
+
+    private fun send(a: MainActivity, action: Int, x: Float, y: Float, time: Long) {
+        val e = MotionEvent.obtain(0L, time, action, x, y, 0)
+        a.dispatchTouchEvent(e)
+        e.recycle()
     }
 
-    /** 屏幕左侧 1/3 区域内向右滑，应识别为“打开侧边栏”手势 */
+    /** 摆好尺寸并按 1233x2673 布局，返回抽屉面板 */
+    private fun layoutDrawer(a: MainActivity): View {
+        val decor = a.window.decorView
+        decor.measure(
+            View.MeasureSpec.makeMeasureSpec(1233, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(2673, View.MeasureSpec.EXACTLY),
+        )
+        decor.layout(0, 0, 1233, 2673)
+        val drawer = drawerOf(a)
+        drawer.measure(
+            View.MeasureSpec.makeMeasureSpec(1233, View.MeasureSpec.EXACTLY),
+            View.MeasureSpec.makeMeasureSpec(2673, View.MeasureSpec.EXACTLY),
+        )
+        drawer.layout(0, 0, 1233, 2673)
+        return a.findViewById(R.id.drawerPanel)
+    }
+
+    /** 屏幕左侧右滑：抽屉跟着手指走，而不是一下子弹出 */
     @Test
-    fun swipeRightInLeftThirdIsHandledAsDrawerGesture() {
+    fun swipeRightDragsDrawerWithFinger() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
-                val decor = a.window.decorView
-                decor.measure(
-                    View.MeasureSpec.makeMeasureSpec(1233, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(2673, View.MeasureSpec.EXACTLY),
-                )
-                decor.layout(0, 0, 1233, 2673)
+                val panel = layoutDrawer(a)
+                val closedLeft = panel.left
+                assertTrue("初始状态抽屉应在屏幕外：$closedLeft", closedLeft < 0)
 
-                fun send(action: Int, x: Float, y: Float, time: Long) {
-                    val e = MotionEvent.obtain(0L, time, action, x, y, 0)
-                    a.dispatchTouchEvent(e)
-                    e.recycle()
-                }
-                send(MotionEvent.ACTION_DOWN, 60f, 900f, 0)
-                send(MotionEvent.ACTION_MOVE, 300f, 902f, 20)
-                send(MotionEvent.ACTION_MOVE, 520f, 905f, 40)
-                assertTrue("左 1/3 右滑没有被识别为抽屉手势", claimed(a))
-                send(MotionEvent.ACTION_UP, 520f, 905f, 60)
+                send(a, MotionEvent.ACTION_DOWN, 60f, 900f, 0)
+                send(a, MotionEvent.ACTION_MOVE, 140f, 902f, 20)
+                send(a, MotionEvent.ACTION_MOVE, 420f, 904f, 40)
+
+                assertTrue("抽屉应跟随手指移动：$closedLeft -> ${panel.left}", panel.left > closedLeft)
+                assertTrue("拖动中不应越过全开位置", panel.left <= 0)
+
+                send(a, MotionEvent.ACTION_UP, 420f, 904f, 60)
+                assertTrue(
+                    "拖过一半松手应吸附为打开",
+                    drawerOf(a).isDrawerOpen(androidx.core.view.GravityCompat.START),
+                )
             }
         }
     }
 
-    /** 屏幕右侧、没有任何列表项的空白处右滑：也应打开侧边栏 */
+    /** 右侧空白处右滑也能拖动抽屉：不再限制在屏幕左边缘 */
     @Test
-    fun swipeRightOnBlankAreaIsHandledAsDrawerGesture() {
+    fun swipeRightOnBlankAreaAlsoDragsDrawer() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
-                val decor = a.window.decorView
-                decor.measure(
-                    View.MeasureSpec.makeMeasureSpec(1233, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(2673, View.MeasureSpec.EXACTLY),
-                )
-                decor.layout(0, 0, 1233, 2673)
+                val panel = layoutDrawer(a)
+                val closedLeft = panel.left
 
-                fun send(action: Int, x: Float, y: Float, time: Long) {
-                    val e = MotionEvent.obtain(0L, time, action, x, y, 0)
-                    a.dispatchTouchEvent(e)
-                    e.recycle()
-                }
-                send(MotionEvent.ACTION_DOWN, 800f, 900f, 0)
-                send(MotionEvent.ACTION_MOVE, 1000f, 902f, 20)
-                assertTrue("空白处右滑没有被识别为抽屉手势", claimed(a))
-                // claimed 为 true 说明已经走完「拦截手势 → openDrawer」分支
-                // （Robolectric 里 DrawerLayout 的开合动画不会真正播放，故不断言可见性）
-                send(MotionEvent.ACTION_UP, 1000f, 902f, 40)
+                send(a, MotionEvent.ACTION_DOWN, 800f, 1200f, 0)
+                send(a, MotionEvent.ACTION_MOVE, 880f, 1202f, 20)
+                send(a, MotionEvent.ACTION_MOVE, 1060f, 1204f, 40)
+                assertTrue("空白处右滑也应拖动抽屉", panel.left > closedLeft)
+
+                send(a, MotionEvent.ACTION_UP, 1060f, 1204f, 60)
             }
         }
     }
 
-    /** 按在列表卡片上右滑：和空白区域一样，直接打开侧边栏，不应触发列表动作 */
+    /** 按在列表卡片上右滑：拖动抽屉，不应触发表情 / 选择 */
     @Test
-    fun swipeRightOnListItemOpensDrawer() {
+    fun swipeRightOnListItemDragsDrawer() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 val task = DownloadTask(
@@ -156,15 +165,14 @@ class ListInteractionTest {
                     rv.findChildViewUnder(cx - rvLoc[0], cy - rvLoc[1]) != null
                 )
 
-                fun send(action: Int, x: Float, y: Float, time: Long) {
-                    val e = MotionEvent.obtain(0L, time, action, x, y, 0)
-                    a.dispatchTouchEvent(e)
-                    e.recycle()
-                }
-                send(MotionEvent.ACTION_DOWN, cx, cy, 0)
-                send(MotionEvent.ACTION_MOVE, cx + 200f, cy + 2f, 20)
-                assertTrue("卡片上右滑也应直接打开侧边栏", claimed(a))
-                send(MotionEvent.ACTION_UP, cx + 200f, cy + 2f, 40)
+                val panel = layoutDrawer(a)
+                val closedLeft = panel.left
+                send(a, MotionEvent.ACTION_DOWN, cx, cy, 0)
+                send(a, MotionEvent.ACTION_MOVE, cx + 90f, cy + 2f, 20)
+                send(a, MotionEvent.ACTION_MOVE, cx + 280f, cy + 3f, 40)
+                assertTrue("卡片上右滑也应拖动抽屉", panel.left > closedLeft)
+                assertTrue("右滑不应进入多选", (rv.adapter as DownloadsAdapter).selectedIds.isEmpty())
+                send(a, MotionEvent.ACTION_UP, cx + 280f, cy + 3f, 60)
             }
         }
     }

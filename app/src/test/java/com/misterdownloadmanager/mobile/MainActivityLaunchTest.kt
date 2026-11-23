@@ -120,8 +120,9 @@ class MainActivityLaunchTest {
     fun opensDrawer() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { a ->
-                val drawer = a.findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.drawer)
+                val drawer = a.findViewById<SwipeDrawerLayout>(R.id.drawer)
                 drawer.openDrawer(androidx.core.view.GravityCompat.START)
+                assertTrue("openDrawer 后应处于打开状态", drawer.isDrawerOpen(androidx.core.view.GravityCompat.START))
             }
         }
     }

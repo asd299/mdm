@@ -42,7 +42,6 @@ import androidx.core.content.FileProvider
 import androidx.core.view.GravityCompat
 import androidx.core.view.ViewCompat
 import androidx.core.view.WindowInsetsCompat
-import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
@@ -60,7 +59,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var adapter: DownloadsAdapter
     private lateinit var emptyWrap: View
     private lateinit var emptyText: TextView
-    private lateinit var drawer: DrawerLayout
+    private lateinit var drawer: SwipeDrawerLayout
     private lateinit var drawerPanel: View
     private lateinit var toolbar: MaterialToolbar
     private lateinit var fab: FloatingActionButton
@@ -72,6 +71,8 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sortPanel: View
     private lateinit var sortOptions: LinearLayout
     private lateinit var tvSortOrder: TextView
+    private lateinit var itemPanel: View
+    private lateinit var itemPanelGrid: LinearLayout
 
     private var searchView: SearchView? = null
     private var searchItem: MenuItem? = null
@@ -87,6 +88,8 @@ class MainActivity : AppCompatActivity() {
     private var sortMode: SortMode = SortMode.TIME
     private var sortAscending = false
     private var sortPanelOpen = false
+    private var itemPanelOpen = false
+    private var itemPanelTaskId: String? = null
 
     private val pickDir: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -180,7 +183,7 @@ class MainActivity : AppCompatActivity() {
 
         // 侧边栏
         toolbar.setNavigationOnClickListener { drawer.openDrawer(GravityCompat.START) }
-        drawer.addDrawerListener(object : DrawerLayout.SimpleDrawerListener() {
+        drawer.addDrawerListener(object : SwipeDrawerLayout.Listener {
             override fun onDrawerOpened(drawerView: View) {
                 updateNavCounts()
             }
@@ -198,11 +201,12 @@ class MainActivity : AppCompatActivity() {
             onPauseResume = { task -> onPauseResume(task) },
             onDelete = { task -> confirmDelete(task) },
             onOpen = { task -> openFile(task) },
-            onItemClick = { task ->
-                if (task.status == Status.COMPLETED) openFile(task) else showItemMenu(task)
-            },
+            // 点击就地展开操作面板（和「排序」同一种交互），长按进入多选
+            onItemClick = { task -> showItemPanel(task) },
             onItemLongClick = { task ->
-                showItemMenu(task, fromLongPress = true)
+                if (sortPanelOpen) collapseSortPanel()
+                if (itemPanelOpen) collapseItemPanel()
+                adapter.toggle(task)
                 true
             },
             onSelectionChanged = { updateSelectionUi() },
@@ -234,7 +238,10 @@ class MainActivity : AppCompatActivity() {
         // 滚动列表时自动收起排序面板，避免长期占用屏幕
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-                if (newState != RecyclerView.SCROLL_STATE_IDLE && sortPanelOpen) collapseSortPanel()
+                if (newState != RecyclerView.SCROLL_STATE_IDLE) {
+                    if (sortPanelOpen) collapseSortPanel()
+                    if (itemPanelOpen) collapseItemPanel()
+                }
             }
         })
 
@@ -288,63 +295,12 @@ class MainActivity : AppCompatActivity() {
 
     private fun prefs() = getSharedPreferences("mdm_prefs", Context.MODE_PRIVATE)
 
-    // ---------- 手势：屏幕左侧 1/3 区域向右滑打开侧边栏 ----------
-
-    private var drawerDownX = 0f
-    private var drawerDownY = 0f
-    private var drawerSwipeCandidate = false
-    private var drawerSwipeClaimed = false
-
     /**
-     * DrawerLayout 默认只在屏幕最左约 20dp 的边缘能拖出抽屉，很难碰到。
-     * 这里改为：**任意位置**向右滑都能打开侧边栏——包括按在列表卡片上，
-     * 右滑不再触发任何列表项动作。左滑仍然交给列表（选中 / 区间多选）。
+     * 只在按下时处理「点搜索框外收起搜索」；抽屉的拖拽由 [SwipeDrawerLayout] 自己做，
+     * 跟随手指移动，不再从这里直接 openDrawer。
      */
     override fun dispatchTouchEvent(ev: MotionEvent): Boolean {
-        if (!::drawer.isInitialized) return super.dispatchTouchEvent(ev)
-
-        when (ev.actionMasked) {
-            MotionEvent.ACTION_DOWN -> {
-                // 点搜索框以外的地方 = 退出搜索（收起键盘、清空过滤、恢复标题）
-                collapseSearchOnOutsideTouch(ev)
-                drawerSwipeClaimed = false
-                drawerDownX = ev.x
-                drawerDownY = ev.y
-                // 右滑在任何位置（含列表卡片上）都只是打开侧边栏，认手即可，不需要命中测试
-                drawerSwipeCandidate = !drawer.isDrawerOpen(GravityCompat.START)
-            }
-
-            MotionEvent.ACTION_MOVE -> {
-                if (drawerSwipeClaimed) return true
-                if (drawerSwipeCandidate) {
-                    val dx = ev.x - drawerDownX
-                    val dy = ev.y - drawerDownY
-                    val slop = ViewConfiguration.get(this).scaledTouchSlop
-                    if (dx > slop * 2 && dx > kotlin.math.abs(dy) * 1.6f) {
-                        drawerSwipeClaimed = true
-                        // 先让列表收到 CANCEL，避免残留按压/滑动状态
-                        val cancel = MotionEvent.obtain(ev)
-                        cancel.action = MotionEvent.ACTION_CANCEL
-                        try {
-                            super.dispatchTouchEvent(cancel)
-                        } catch (_: Throwable) {
-                        }
-                        cancel.recycle()
-                        drawer.openDrawer(GravityCompat.START)
-                        return true
-                    }
-                }
-            }
-
-            MotionEvent.ACTION_UP, MotionEvent.ACTION_CANCEL -> {
-                if (drawerSwipeClaimed) {
-                    drawerSwipeClaimed = false
-                    drawerSwipeCandidate = false
-                    return true
-                }
-                drawerSwipeCandidate = false
-            }
-        }
+        if (ev.actionMasked == MotionEvent.ACTION_DOWN) collapseSearchOnOutsideTouch(ev)
         return super.dispatchTouchEvent(ev)
     }
 
@@ -724,6 +680,9 @@ class MainActivity : AppCompatActivity() {
         sortPanel = findViewById(R.id.sortPanel)
         sortOptions = findViewById(R.id.sortOptions)
         tvSortOrder = findViewById(R.id.tvSortOrder)
+        itemPanel = findViewById(R.id.itemPanel)
+        itemPanelGrid = findViewById(R.id.itemPanelGrid)
+        findViewById<View>(R.id.btnItemPanelClose).setOnClickListener { collapseItemPanel() }
 
         findViewById<View>(R.id.btnPauseAll).setOnClickListener { pauseAll() }
         findViewById<View>(R.id.btnResumeAll).setOnClickListener { resumeAll() }
@@ -864,7 +823,7 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.cleared_count, toRemove.size), Toast.LENGTH_SHORT).show()
     }
 
-    /** 保存到所选目录失败时提示一次，并告诉用户可以在长按菜单里重试 */
+    /** 保存到所选目录失败时提示一次，并告诉用户可以在点击列表项的操作面板里重试 */
     private fun notifySaveFailures() {
         val fresh = synchronized(Repo.tasks) {
             Repo.tasks.filter {
@@ -1144,13 +1103,78 @@ class MainActivity : AppCompatActivity() {
         return items to actions
     }
 
-    private fun showItemMenu(task: DownloadTask, fromLongPress: Boolean = false) {
-        val (items, actions) = buildItemMenu(task, fromLongPress)
-        MaterialAlertDialogBuilder(this)
-            .setTitle(task.fileName.ifBlank { task.url })
-            .setItems(items.toTypedArray()) { _, which -> actions[which].invoke() }
-            .setNegativeButton(android.R.string.cancel, null)
-            .show()
+    /**
+     * 列表项操作面板：就地展开（与「排序」同一种交互），不再弹对话框。
+     * 再点同一项会把面板收回去。
+     */
+    private fun showItemPanel(task: DownloadTask) {
+        if (sortPanelOpen) collapseSortPanel()
+        if (itemPanelOpen && itemPanelTaskId == task.id) {
+            collapseItemPanel()
+            return
+        }
+        itemPanelTaskId = task.id
+        findViewById<TextView>(R.id.tvItemPanelTitle).text = task.fileName.ifBlank { task.url }
+
+        val (items, actions) = buildItemMenu(task, false)
+        itemPanelGrid.removeAllViews()
+        var row: LinearLayout? = null
+        items.forEachIndexed { index, label ->
+            if (index % 2 == 0) {
+                row = LinearLayout(this).apply {
+                    orientation = LinearLayout.HORIZONTAL
+                    layoutParams = LinearLayout.LayoutParams(
+                        LinearLayout.LayoutParams.MATCH_PARENT,
+                        LinearLayout.LayoutParams.WRAP_CONTENT,
+                    ).apply { topMargin = if (index == 0) 0 else dp(6) }
+                }
+                itemPanelGrid.addView(row)
+            }
+            val chip = layoutInflater.inflate(R.layout.item_action_chip, row, false)
+            chip.findViewById<ImageView>(R.id.chipIcon).setImageResource(iconForAction(label))
+            chip.findViewById<TextView>(R.id.chipText).text = label
+            chip.setOnClickListener {
+                collapseItemPanel()
+                actions[index].invoke()
+            }
+            row?.addView(chip)
+        }
+        // 末行不足三个时补等宽占位，按钮不会一个撑满整行
+        repeat((2 - items.size % 2) % 2) {
+            row?.addView(View(this).apply {
+                layoutParams = LinearLayout.LayoutParams(0, 1, 1f).apply {
+                    marginStart = dp(3)
+                    marginEnd = dp(3)
+                }
+            })
+        }
+
+        if (!itemPanelOpen) {
+            itemPanelOpen = true
+            animateSection(itemPanel, true)
+        }
+    }
+
+    private fun collapseItemPanel() {
+        if (!itemPanelOpen) return
+        itemPanelOpen = false
+        itemPanelTaskId = null
+        animateSection(itemPanel, false)
+    }
+
+    /** 操作项用哪个图标：按文案映射，文案变了这里也要跟着改 */
+    private fun iconForAction(label: String): Int = when (label) {
+        getString(R.string.pause) -> R.drawable.ic_pause
+        getString(R.string.resume) -> R.drawable.ic_resume
+        getString(R.string.open) -> R.drawable.ic_file_open
+        getString(R.string.properties) -> R.drawable.ic_info
+        getString(R.string.copy_link) -> R.drawable.ic_copy
+        getString(R.string.open_link) -> R.drawable.ic_link
+        getString(R.string.multi_select) -> R.drawable.ic_select_all
+        getString(R.string.delete) -> R.drawable.ic_delete
+        getString(R.string.save_retry) -> R.drawable.ic_folder
+        getString(R.string.copy_error) -> R.drawable.ic_bug
+        else -> R.drawable.ic_info
     }
 
     /** 复制单个任务的错误信息（失败原因）到剪切板 */
@@ -1376,7 +1400,10 @@ class MainActivity : AppCompatActivity() {
         fab.visibility = if (sel) View.GONE else View.VISIBLE
         // 多选时让位给底部批量操作条
         actionRow.visibility = if (sel) View.GONE else View.VISIBLE
-        if (sel && sortPanelOpen) collapseSortPanel()
+        if (sel) {
+            if (sortPanelOpen) collapseSortPanel()
+            if (itemPanelOpen) collapseItemPanel()
+        }
         setHeaderTitle(
             if (sel) {
                 getString(R.string.selected_count, adapter.selectedIds.size)
@@ -1454,8 +1481,6 @@ class MainActivity : AppCompatActivity() {
     // ---------- 滑动操作 ----------
 
     /** 左滑 = 选中 / 区间多选。右滑由抽屉手势接管，列表项不再有自己的右滑动作 */
-    private var swipedTask: DownloadTask? = null
-
     /** 首次左滑选中时提示一次区间多选用法 */
     private var swipeSelectHinted = false
 
@@ -1511,6 +1536,10 @@ class MainActivity : AppCompatActivity() {
             isFakeBoldText = true
         }
 
+        var lastDx = 0f
+        var lastTask: DownloadTask? = null
+        var lastWidth = 1
+
         val callback = object : ItemTouchHelper.SimpleCallback(0, ItemTouchHelper.LEFT) {
             override fun getSwipeDirs(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder): Int =
                 swipeDirsFor(adapter.taskAt(viewHolder.bindingAdapterPosition))
@@ -1521,39 +1550,46 @@ class MainActivity : AppCompatActivity() {
                 target: RecyclerView.ViewHolder
             ): Boolean = false
 
-            /** 滑过卡片宽度 32% 即生效，比默认的 50% 跟手很多 */
-            override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float = 0.32f
+            /**
+             * 阈值设到 1.2，卡片永远不会被「滑出屏幕」——那一下最生硬。
+             * 全程跟手，松手后由 ItemTouchHelper 平滑回弹，回弹结束再判断是否选中。
+             */
+            override fun getSwipeThreshold(viewHolder: RecyclerView.ViewHolder): Float = 1.2f
+
+            override fun getSwipeEscapeVelocity(defaultValue: Float): Float = Float.MAX_VALUE
 
             override fun onSelectedChanged(viewHolder: RecyclerView.ViewHolder?, actionState: Int) {
                 super.onSelectedChanged(viewHolder, actionState)
                 if (actionState == ItemTouchHelper.ACTION_STATE_SWIPE && viewHolder != null) {
                     val pos = viewHolder.bindingAdapterPosition
-                    if (pos != RecyclerView.NO_POSITION) swipedTask = adapter.taskAt(pos)
+                    lastTask = if (pos != RecyclerView.NO_POSITION) adapter.taskAt(pos) else null
+                    lastWidth = viewHolder.itemView.width.coerceAtLeast(1)
+                    lastDx = 0f
+                } else if (actionState == ItemTouchHelper.ACTION_STATE_IDLE) {
+                    // 回弹完成：向左拖过 30% 即视为选中
+                    val task = lastTask
+                    val dx = lastDx
+                    lastTask = null
+                    lastDx = 0f
+                    if (task != null && dx < 0f && kotlin.math.abs(dx) > lastWidth * 0.30f) {
+                        performSwipe(task, ItemTouchHelper.LEFT)
+                    }
                 }
             }
 
             override fun onSwiped(viewHolder: RecyclerView.ViewHolder, direction: Int) {
-                val pos = viewHolder.bindingAdapterPosition
-                val task = swipedTask ?: if (pos != RecyclerView.NO_POSITION) adapter.taskAt(pos) else null
-                swipedTask = null
-                if (task == null) {
-                    adapter.refresh()
-                    return
-                }
-                // ItemTouchHelper 默认的 clearView 是空实现，卡片会带着位移留在原地
-                viewHolder.itemView.translationX = 0f
-                viewHolder.itemView.translationY = 0f
-                viewHolder.itemView.alpha = 1f
-                performSwipe(task, direction)
+                // 阈值 >1，正常拖拽不会走到这里
             }
 
-            /** 滑动结束：不论后续是执行还是取消，先把卡片放回原位 */
             override fun clearView(recyclerView: RecyclerView, viewHolder: RecyclerView.ViewHolder) {
                 super.clearView(recyclerView, viewHolder)
                 val v = viewHolder.itemView
-                if (v.translationX != 0f) v.translationX = 0f
                 if (v.translationY != 0f) v.translationY = 0f
-                if (v.alpha != 1f) v.alpha = 1f
+                // 缩放与透明度兜底复位，用一点缓动而不是瞬间归位
+                v.animate().scaleX(1f).scaleY(1f).alpha(1f)
+                    .setDuration(160)
+                    .setInterpolator(android.view.animation.DecelerateInterpolator())
+                    .start()
             }
 
             override fun onChildDraw(
@@ -1561,20 +1597,33 @@ class MainActivity : AppCompatActivity() {
                 dX: Float, dY: Float, actionState: Int, isCurrentlyActive: Boolean
             ) {
                 val item = viewHolder.itemView
-                if (isCurrentlyActive && item.scaleX != 1f) {
-                    item.scaleX = 1f
-                    item.scaleY = 1f
-                }
-                // 只有左滑（右→左）有视觉反馈；右滑已被抽屉手势接管
-                if (isCurrentlyActive && dX < 0f) {
+                val w = item.width.coerceAtLeast(1)
+                // 进度按「滑过卡片 42% 宽度」归一，视觉反馈比默认的硬阈值线性得多
+                val p = (kotlin.math.abs(dX) / (w * 0.42f)).coerceIn(0f, 1f)
+
+                // 跟手时轻微缩小、变淡，像被推开而不是硬平移
+                item.scaleX = 1f - 0.02f * p
+                item.scaleY = 1f - 0.02f * p
+                item.alpha = 1f - 0.08f * p
+
+                if (dX < 0f) {
                     val top = item.top + 5 * density
                     val bottom = item.bottom - 5 * density
                     val r = 14 * density
-                    fill.color = bgSelect
                     val left = item.right + dX
+                    // 蓝色底随进度加深，文字渐显
+                    fill.color = bgSelect
+                    fill.alpha = (26 + 229 * p).toInt()
                     c.drawRoundRect(RectF(left, top, item.right.toFloat(), bottom), r, r, fill)
+
+                    label.alpha = (40 + 215 * p).toInt()
                     val text = getString(R.string.swipe_select)
-                    c.drawText(text, left + 20 * density, (top + bottom) / 2 + label.textSize / 3, label)
+                    c.drawText(
+                        text,
+                        left + 18 * density,
+                        (top + bottom) / 2 + label.textSize / 3,
+                        label,
+                    )
                 }
                 super.onChildDraw(c, recyclerView, viewHolder, dX, dY, actionState, isCurrentlyActive)
             }

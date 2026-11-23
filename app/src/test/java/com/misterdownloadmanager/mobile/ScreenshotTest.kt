@@ -143,7 +143,7 @@ class ScreenshotTest {
         }
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
-                a.findViewById<androidx.drawerlayout.widget.DrawerLayout>(R.id.drawer)
+                a.findViewById<SwipeDrawerLayout>(R.id.drawer)
                     .openDrawer(androidx.core.view.GravityCompat.START)
                 val panel = a.findViewById<View>(R.id.drawerPanel)
                 shot(panel, 924, 2280, "/tmp/shot_drawer.png")
@@ -295,6 +295,39 @@ class ScreenshotTest {
                 println("CONFLICT_H ${decor.measuredHeight}")
                 shot(decor, 1080, decor.measuredHeight.coerceAtLeast(600), "/tmp/shot_conflict.png")
                 d.dismiss()
+            }
+        }
+    }
+
+    /** 点击列表项：就地展开的操作面板 */
+    @Test
+    fun renderItemPanel() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val dir = ctx.filesDir.absolutePath
+        synchronized(Repo.tasks) {
+            Repo.tasks.clear()
+            Repo.tasks.add(
+                DownloadTask(
+                    id = "panel", url = "https://example.com/movie.mp4", fileName = "movie.mp4",
+                    dir = dir, totalBytes = 1000, status = Status.COMPLETED,
+                    segments = mutableListOf(Segment(0, 0, 1000, 1000)),
+                )
+            )
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+                (rv.adapter as DownloadsAdapter).refresh()
+                rv.measure(
+                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(1500, View.MeasureSpec.EXACTLY),
+                )
+                rv.layout(0, 0, 1080, 1500)
+                val vh = rv.findViewHolderForAdapterPosition(0) ?: return@onActivity
+                vh.itemView.performClick()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_item_panel.png")
             }
         }
     }

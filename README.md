@@ -38,6 +38,8 @@
 | iOS 风格界面 | 极光渐变应用图标、卡片式任务列表、自定义可折叠侧边栏 |
 | 顶部快捷操作 | 标题与侧边栏按钮同排；下方一行「全部暂停 / 全部继续 / 清除 / 排序」，作用于整个列表 |
 | 内联排序面板 | 点「排序」就地展开，四种排序方式 + 「降序 / 增序」开关，不弹窗；滚动列表自动收起 |
+| 跟手侧边栏 | 任意位置右滑都能拖动抽屉，跟手不跳变；过半或轻甩吸附，打开后左滑 / 点遮罩关闭 |
+| 就地操作面板 | 单击任务卡片就地展开操作项（打开 / 暂停 / 属性 / 复制链接 / 删除），与排序面板同一交互；长按进入多选 |
 
 > 原项目的 BT 下载、yt-dlp 视频解析、浏览器扩展拦截等能力依赖桌面环境，本版本聚焦其最核心的 **多线程 HTTP 下载引擎 + 任务管理**，适合移动端使用。
 
@@ -56,18 +58,15 @@
 
 ## 项目结构
 
+完整清单由脚本从源码注释生成，见 **[docs/PROJECT_MAP.md](docs/PROJECT_MAP.md)**（含每个 Kotlin 文件的职责、布局用途、资源与测试用例统计）：
+
+```bash
+python3 tools/gen_project_doc.py   # 改了源码后重新生成
 ```
-app/src/main/java/com/misterdownloadmanager/mobile/
-├── MdmApp.kt              # Application，初始化任务仓库
-├── DownloadTask.kt        # 任务/分段模型 + JSON 持久化（Repo）
-├── DownloadEngine.kt      # 核心：多线程分段下载引擎（探测/分段/续传/重试/合并/保存）
-├── DownloadService.kt     # 前台服务：任务队列与进度通知
-├── AddCoordinator.kt      # 添加任务的统一入口：冲突检测 → 弹窗选择 → 入队
-├── Conflict.kt            # 同链接 / 同文件名 / 磁盘同名文件的判定与自动编号
-├── MainActivity.kt        # 主界面：任务列表、分享链接接入、文件打开
-├── SaveStore.kt           # 保存到所选目录：SAF / MediaStore / 默认下载目录（含写入校验）
-├── DownloadsAdapter.kt    # 列表适配器（进度、速度、状态）
-└── AddDownloadDialog.kt   # 新建下载弹窗（含剪贴板检测）
+
+```
+app/src/main/java/com/misterdownloadmanager/mobile/   # 下载引擎、任务模型、界面
+app/src/test/java/com/misterdownloadmanager/mobile/   # Robolectric 单元测试 + 截图测试
 
 key/
 ├── mdm-release.keystore   # 安装包签名密钥（PKCS12，与所有已发布 APK 一致）
@@ -141,13 +140,14 @@ tools/
   <img src="docs/app-icon.png" width="96" alt="应用图标">
 </p>
 
-1024×1024 超椭圆（squircle），深紫到亮紫的对角渐变叠加右上紫色、左下青色两团极光光晕，
-中央是圆角笔画的白色 **M** 品牌符号（Mister 的首字母），带一层很浅的投影让符号浮起来。
+1024×1024 超椭圆（squircle），靛蓝到紫的柔和对角渐变，左上柔光、右下冷色反光；
+中央是白色「向下箭头落入开口托盘」符号——一个形状说清「下载」，缩到 40px 仍可辨认。
+符号内叠了一层自上而下的玻璃高光，不做 3D，保持 iOS 26 那种克制的层次。
 
 同一套图标的产物：
 
 - 桌面 PNG：`mipmap-mdpi` ~ `mipmap-xxxhdpi`，另附圆形版本 `ic_launcher_round`
-- 自适应图标：`ic_launcher_background`（渐变层）+ `ic_launcher_foreground`（M 矢量，缩放到 66% 安全区）
+- 自适应图标：`ic_launcher_background`（渐变层）+ `ic_launcher_foreground`（箭头 + 托盘矢量，缩放到 62% 安全区）
 - 界面内图标：`drawable-nodpi/app_icon.png`，侧边栏顶部直接引用它——
   自适应图标在普通 `ImageView` 里不会被系统裁成 squircle，必须用烘好的位图才不会「桌面圆角、侧边栏方块」
 

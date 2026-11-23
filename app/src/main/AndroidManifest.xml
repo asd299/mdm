@@ -58,11 +58,13 @@
 
         <activity
             android:name=".AboutActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.MDM.Screen" />
 
         <activity
             android:name=".CrashLogActivity"
-            android:exported="false" />
+            android:exported="false"
+            android:theme="@style/Theme.MDM.Screen" />
 
         <service
             android:name=".DownloadService"

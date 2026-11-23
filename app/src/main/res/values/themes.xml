@@ -41,6 +41,19 @@
         <item name="bottomSheetDialogTheme">@style/ThemeOverlay.MDM.BottomSheetDialog</item>
     </style>
 
+
+    <!-- 二级页面（关于 / 崩溃日志）：原页淡出，新页自右向左淡入全屏 -->
+    <style name="Theme.MDM.Screen" parent="Theme.MDM">
+        <item name="android:windowAnimationStyle">@style/Animation.MDM.Screen</item>
+    </style>
+
+    <style name="Animation.MDM.Screen" parent="@android:style/Animation.Activity">
+        <item name="android:activityOpenEnterAnimation">@anim/screen_enter</item>
+        <item name="android:activityOpenExitAnimation">@anim/screen_exit</item>
+        <item name="android:activityCloseEnterAnimation">@anim/screen_pop_enter</item>
+        <item name="android:activityCloseExitAnimation">@anim/screen_pop_exit</item>
+    </style>
+
     <!-- 浏览器唤起时的悬浮确认窗：透明全屏载体，只显示底部面板 -->
     <style name="Theme.MDM.Prompt" parent="Theme.MDM">
         <item name="android:windowBackground">@android:color/transparent</item>
