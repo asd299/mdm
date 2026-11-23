@@ -169,6 +169,40 @@ object Repo {
     }
 
     /**
+     * 清理历史遗留：旧版本把成品同时留在应用私有目录，既占「应用数据」又是重复文件。
+     *
+     * 只处理「已完成 + 已成功保存到用户可见位置」的任务，并且在删除前确认目标文件真的
+     * 还能打开，避免把唯一副本删掉。
+     *
+     * @return 删除的副本数量
+     */
+    fun cleanupPrivateCopies(context: Context): Int {
+        var removed = 0
+        val candidates = synchronized(tasks) {
+            tasks.filter {
+                it.status == Status.COMPLETED && it.publicSaved && !it.savedUri.isNullOrBlank()
+            }
+        }
+        candidates.forEach { t ->
+            val copy = t.finalFile
+            if (!copy.exists()) return@forEach
+            val token = t.savedUri ?: return@forEach
+            val targetOk = try {
+                if (token.startsWith("content:")) {
+                    context.contentResolver
+                        .openFileDescriptor(android.net.Uri.parse(token), "r")?.use { true } ?: false
+                } else {
+                    File(token).exists()
+                }
+            } catch (_: Exception) {
+                false
+            }
+            if (targetOk && copy.delete()) removed++
+        }
+        return removed
+    }
+
+    /**
      * 下拉刷新：重新读取磁盘上的任务文件，把内存里还没有的任务补进来。
      *
      * 内存里的任务对象可能正在下载（进度/状态比磁盘上的新），所以同 id 一律以内存为准，

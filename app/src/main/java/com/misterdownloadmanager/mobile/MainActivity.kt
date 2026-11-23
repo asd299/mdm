@@ -162,6 +162,8 @@ class MainActivity : AppCompatActivity() {
         super.onCreate(savedInstanceState)
         setContentView(R.layout.activity_main)
         Repo.init(this)
+        // 升级上来的旧任务：成品已在公共目录时，删掉私有目录里的重复副本
+        Repo.cleanupPrivateCopies(this)
 
         toolbar = findViewById(R.id.toolbar)
         setSupportActionBar(toolbar)

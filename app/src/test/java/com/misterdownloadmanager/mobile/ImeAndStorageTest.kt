@@ -194,4 +194,45 @@ class ImeAndStorageTest {
         assertFalse(file.exists())
         dir.delete()
     }
+
+    /**
+     * 升级上来的旧任务：公共副本还在就删掉私有副本；
+     * 公共副本没了则保留私有副本，不能让用户丢文件。
+     */
+    @Test
+    fun cleanupPrivateCopiesOnlyWhenPublicStillExists() {
+        val ctx = androidx.test.core.app.ApplicationProvider.getApplicationContext<android.content.Context>()
+        val dir = ctx.filesDir
+        val privateKeep = File(dir, "keep.mp4").apply { writeText("private") }
+        val privateGone = File(dir, "gone.mp4").apply { writeText("private") }
+        val publicCopy = File(dir, "public-keep.mp4").apply { writeText("public") }
+
+        synchronized(Repo.tasks) {
+            Repo.tasks.clear()
+            Repo.tasks.add(
+                DownloadTask(
+                    id = "k", url = "u1", fileName = "keep.mp4", dir = dir.absolutePath,
+                    status = Status.COMPLETED, publicSaved = true,
+                    savedUri = publicCopy.absolutePath,
+                )
+            )
+            Repo.tasks.add(
+                DownloadTask(
+                    id = "g", url = "u2", fileName = "gone.mp4", dir = dir.absolutePath,
+                    status = Status.COMPLETED, publicSaved = true,
+                    savedUri = File(dir, "missing.mp4").absolutePath,
+                )
+            )
+        }
+
+        val removed = Repo.cleanupPrivateCopies(ctx)
+
+        assertEquals(1, removed)
+        assertFalse("公共副本还在，私有副本应删除", privateKeep.exists())
+        assertTrue("公共副本不存在时必须保留私有副本", privateGone.exists())
+
+        synchronized(Repo.tasks) { Repo.tasks.clear() }
+        privateGone.delete()
+        publicCopy.delete()
+    }
 }
