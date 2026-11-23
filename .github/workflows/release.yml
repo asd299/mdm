@@ -5,16 +5,33 @@ on:
   push:
     tags:
       - "v*"
+  # 允许在 Actions 页面手动重跑（标签已存在时也能补发）
+  workflow_dispatch:
+    inputs:
+      tag:
+        description: "要发布/补发的标签，例如 v1.6.0"
+        required: true
 
 permissions:
   contents: write
 
+concurrency:
+  group: release-${{ github.ref_name }}
+  cancel-in-progress: false
+
 jobs:
   release:
     runs-on: ubuntu-latest
+    timeout-minutes: 45
+    env:
+      # 标签触发时用标签名；手动触发时用输入的标签
+      RELEASE_TAG: ${{ inputs.tag || github.ref_name }}
     steps:
       - name: Checkout
         uses: actions/checkout@v4
+        with:
+          ref: ${{ env.RELEASE_TAG }}
+          fetch-depth: 0
 
       - name: Set up JDK 17
         uses: actions/setup-java@v4
@@ -39,7 +56,7 @@ jobs:
       - name: Sign APK
         run: |
           set -euo pipefail
-          OUT="MisterDownloadManager-Android-${GITHUB_REF_NAME}.apk"
+          OUT="MisterDownloadManager-Android-${RELEASE_TAG}.apk"
           SDK="${ANDROID_SDK_ROOT:-${ANDROID_HOME:-}}"
           BT="$(ls -d "$SDK"/build-tools/* | sort -V | tail -1)"
           "$BT/zipalign" -p -f 4 app/build/outputs/apk/release/app-release-unsigned.apk aligned.apk
@@ -56,14 +73,14 @@ jobs:
       - name: Publish GitHub Release
         uses: softprops/action-gh-release@v2
         with:
-          name: Mister 下载管理器 ${{ github.ref_name }}
-          tag_name: ${{ github.ref_name }}
+          name: Mister 下载管理器 ${{ env.RELEASE_TAG }}
+          tag_name: ${{ env.RELEASE_TAG }}
           files: ${{ env.APK }}
           generate_release_notes: true
           body: |
             ## 下载
 
-            - `MisterDownloadManager-Android-${{ github.ref_name }}.apk`：直接安装（已签名，可覆盖升级）
+            - `MisterDownloadManager-Android-${{ env.RELEASE_TAG }}.apk`：直接安装（已签名，可覆盖升级）
             - 需要 Android 7.0 (API 24) 及以上
 
             ## 本次更新
