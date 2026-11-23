@@ -108,7 +108,8 @@ class MainActivityLaunchTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { a ->
                 assertEquals(5, a.findViewById<android.widget.LinearLayout>(R.id.bodyTasks).childCount)
-                assertEquals(7, a.findViewById<android.widget.LinearLayout>(R.id.bodyTypes).childCount)
+                // 7 种文件类型 + 顶部的「全部类型」
+                assertEquals(8, a.findViewById<android.widget.LinearLayout>(R.id.bodyTypes).childCount)
                 // 批量操作已移到顶部工具栏，这里只剩「崩溃日志 / 关于」
                 assertEquals(2, a.findViewById<android.widget.LinearLayout>(R.id.bodyMore).childCount)
             }

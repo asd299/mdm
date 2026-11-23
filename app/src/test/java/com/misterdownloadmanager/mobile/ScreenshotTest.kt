@@ -204,6 +204,50 @@ class ScreenshotTest {
         }
     }
 
+    /** 双层筛选：只选「视频」，任务维度仍为全部 */
+    @Test
+    fun renderTypeFilter() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val dir = ctx.filesDir.absolutePath
+        synchronized(Repo.tasks) {
+            Repo.tasks.clear()
+            Repo.tasks.add(
+                DownloadTask(id = "f1", url = "https://example.com/Interstellar.mkv",
+                    fileName = "Interstellar.2014.2160p.mkv", dir = dir,
+                    totalBytes = 8_000_000_000, status = Status.DOWNLOADING,
+                    segments = mutableListOf(Segment(0, 0, 8_000_000_000, 3_100_000_000)))
+            )
+            Repo.tasks.add(
+                DownloadTask(id = "f2", url = "https://example.com/app-release.apk",
+                    fileName = "app-release.apk", dir = dir,
+                    totalBytes = 24_000_000, status = Status.COMPLETED,
+                    segments = mutableListOf(Segment(0, 0, 24_000_000, 24_000_000)),
+                    publicSaved = true)
+            )
+            Repo.tasks.add(
+                DownloadTask(id = "f3", url = "https://example.com/IMG_2048.jpg",
+                    fileName = "IMG_2048.jpg", dir = dir,
+                    totalBytes = 4_500_000, status = Status.PAUSED,
+                    segments = mutableListOf(Segment(0, 0, 4_500_000, 1_200_000)))
+            )
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+                rv.layoutAnimation = null
+                val types = a.findViewById<android.widget.LinearLayout>(R.id.bodyTypes)
+                types.getChildAt(1).performClick() // 视频
+                // 切分类会播放列表入场动画；静止截图前关掉，避免行还在动画起始态
+                rv.layoutAnimation = null
+                rv.requestLayout()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(
+                    400, java.util.concurrent.TimeUnit.MILLISECONDS
+                )
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_filter_video.png")
+            }
+        }
+    }
+
     @Test
     fun renderSheet() {
         val ctx = ApplicationProvider.getApplicationContext<Context>()

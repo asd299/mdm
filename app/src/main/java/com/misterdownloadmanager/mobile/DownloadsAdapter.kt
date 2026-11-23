@@ -67,8 +67,17 @@ class DownloadsAdapter(
     var anchorId: String? = null
         private set
 
-    /** 当前分类（侧边栏） */
-    var category: Cat = Cat.ALL
+    /** 「任务」维度筛选（全部 / 正在下载 / 已完成 / 已暂停 / 失败） */
+    var statusCat: Cat = Cat.ALL
+        set(value) {
+            if (field != value) {
+                field = value
+                refresh()
+            }
+        }
+
+    /** 「按类型分类」维度筛选（全部 / 视频 / 音乐 / …） */
+    var typeCat: Cat = Cat.ALL
         set(value) {
             if (field != value) {
                 field = value
@@ -111,7 +120,7 @@ class DownloadsAdapter(
         val snapshot = synchronized(Repo.tasks) { Repo.tasks.toList() }
         val q = query.trim()
         val filtered = snapshot.filter { t ->
-            FileTypes.matches(category, t) &&
+            FileTypes.matches(statusCat, typeCat, t) &&
                 (q.isEmpty() || t.fileName.contains(q, true) || t.url.contains(q, true))
         }
         val base = when (sortMode) {

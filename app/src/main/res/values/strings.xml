@@ -79,6 +79,7 @@
 
     <!-- 侧边栏 -->
     <string name="nav_all">全部下载</string>
+    <string name="nav_all_types">全部类型</string>
     <string name="nav_running">正在下载</string>
     <string name="nav_done">已完成</string>
     <string name="nav_paused">已暂停</string>
@@ -124,7 +125,9 @@
     <string name="batch_none">所选任务中没有可操作项</string>
     <string name="cleared_count">已清除 %1$d 个任务</string>
     <string name="swipe_select">选择</string>
-    <string name="swipe_select_hint">已选中该项；再左滑另一项，可连同中间的项一起批量选中</string>
+    <string name="refresh_done">列表已刷新</string>
+    <string name="refresh_found">已刷新，发现 %1$d 个新任务</string>
+    <string name="refresh_hint">下拉可刷新列表</string>    <string name="swipe_select_hint">已选中该项；再左滑另一项，可连同中间的项一起批量选中</string>
     <string name="empty_all">暂无下载任务\n点击右下角按钮添加链接</string>
     <string name="empty_running">没有正在进行的下载</string>
     <string name="empty_done">还没有已完成的文件</string>

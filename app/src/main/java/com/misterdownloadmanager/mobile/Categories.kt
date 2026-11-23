@@ -18,8 +18,14 @@ enum class Cat(@StringRes val titleRes: Int, @StringRes val emptyRes: Int) {
     APK(R.string.nav_apk, R.string.empty_apk),
     OTHER(R.string.nav_other, R.string.empty_other);
 
+    /** 属于「任务」维度（含该维度的「全部」） */
     val isStatusCat: Boolean
-        get() = this == RUNNING || this == DONE || this == PAUSED || this == FAILED || this == ALL
+        get() = this == ALL || this == RUNNING || this == DONE || this == PAUSED || this == FAILED
+
+    /** 属于「按类型分类」维度（含该维度的「全部」） */
+    val isTypeCat: Boolean
+        get() = this == ALL || this == VIDEO || this == AUDIO || this == IMAGE ||
+            this == DOC || this == ARCHIVE || this == APK || this == OTHER
 }
 
 /** 排序方式（方向由列表的「降序 / 顺序」开关单独控制） */
@@ -82,13 +88,28 @@ object FileTypes {
         else -> R.color.cat_other
     }
 
-    /** 某分类是否包含该任务 */
-    fun matches(cat: Cat, t: DownloadTask): Boolean = when (cat) {
+    /** 「任务」维度：只看状态，无论文件类型 */
+    fun matchesStatus(cat: Cat, t: DownloadTask): Boolean = when (cat) {
         Cat.ALL -> true
         Cat.RUNNING -> t.status == Status.DOWNLOADING || t.status == Status.QUEUED
         Cat.DONE -> t.status == Status.COMPLETED
         Cat.PAUSED -> t.status == Status.PAUSED
         Cat.FAILED -> t.status == Status.FAILED
-        else -> catOf(t.fileName) == cat
+        else -> true
     }
+
+    /** 「按类型分类」维度：只看扩展名，无论状态 */
+    fun matchesType(cat: Cat, t: DownloadTask): Boolean =
+        if (cat == Cat.ALL || cat.isStatusCat) true else catOf(t.fileName) == cat
+
+    /**
+     * 两个维度同时生效（AND）：例如「已完成 + 视频」=
+     * 既是 COMPLETED 又是视频文件。任一维度为「全部」时该维度不参与过滤。
+     */
+    fun matches(cat: Cat, t: DownloadTask): Boolean =
+        matchesStatus(cat, t) && matchesType(cat, t)
+
+    /** 任务 × 类型 组合过滤 */
+    fun matches(status: Cat, type: Cat, t: DownloadTask): Boolean =
+        matchesStatus(status, t) && matchesType(type, t)
 }

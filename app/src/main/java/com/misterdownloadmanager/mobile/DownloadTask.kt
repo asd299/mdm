@@ -149,4 +149,28 @@ object Repo {
         task.finalFile.delete()
         save(context)
     }
+
+    /**
+     * 下拉刷新：重新读取磁盘上的任务文件，把内存里还没有的任务补进来。
+     *
+     * 内存里的任务对象可能正在下载（进度/状态比磁盘上的新），所以同 id 一律以内存为准，
+     * 只合并磁盘上新增的条目；这样刷新不会打断正在进行的下载。
+     *
+     * @return 本次新发现的任务数
+     */
+    fun reload(context: Context): Int {
+        val loaded = load(context)
+        var added = 0
+        synchronized(tasks) {
+            val known = tasks.mapTo(HashSet()) { it.id }
+            val fresh = loaded.filter { it.id !in known }
+            if (fresh.isNotEmpty()) {
+                // 新任务放在前面（与 Repo.add 一致）；列表展示顺序由适配器排序决定
+                tasks.addAll(0, fresh)
+            }
+            added = fresh.size
+        }
+        if (added > 0) save(context)
+        return added
+    }
 }

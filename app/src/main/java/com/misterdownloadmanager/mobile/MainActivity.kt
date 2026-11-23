@@ -16,6 +16,7 @@ import android.os.Build
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
+import android.os.SystemClock
 import android.text.format.DateFormat
 import android.view.Menu
 import android.view.MenuItem
@@ -43,6 +44,7 @@ import androidx.drawerlayout.widget.DrawerLayout
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
+import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -62,6 +64,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fab: FloatingActionButton
     private lateinit var selectionBar: View
     private lateinit var recycler: RecyclerView
+    private lateinit var swipeRefresh: SwipeRefreshLayout
     private lateinit var largeTitle: TextView
     private lateinit var actionRow: View
     private lateinit var sortPanel: View
@@ -69,7 +72,12 @@ class MainActivity : AppCompatActivity() {
     private lateinit var tvSortOrder: TextView
 
     private var searchView: SearchView? = null
-    private var cat: Cat = Cat.ALL
+
+    /** 「任务」维度筛选，默认全部 */
+    private var statusCat: Cat = Cat.ALL
+
+    /** 「按类型分类」维度筛选，默认全部 */
+    private var typeCat: Cat = Cat.ALL
     private var sortMode: SortMode = SortMode.TIME
     private var sortAscending = false
     private var sortPanelOpen = false
@@ -193,7 +201,8 @@ class MainActivity : AppCompatActivity() {
         )
         adapter.sortMode = sortMode
         adapter.sortAscending = sortAscending
-        adapter.category = cat
+        adapter.statusCat = statusCat
+        adapter.typeCat = typeCat
 
         recycler.layoutManager = LinearLayoutManager(this)
         recycler.setHasFixedSize(true)
@@ -202,6 +211,14 @@ class MainActivity : AppCompatActivity() {
         // 关闭默认的 change 动画：进度每 500ms 更新一次，交叉淡入淡出会造成明显闪烁
         (recycler.itemAnimator as? androidx.recyclerview.widget.SimpleItemAnimator)
             ?.supportsChangeAnimations = false
+        // 下拉刷新：重新读取磁盘任务并重绘，不打断正在进行的下载
+        swipeRefresh = findViewById(R.id.swipeRefresh)
+        swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.ios_blue))
+        swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.ios_card))
+        swipeRefresh.setDistanceToTriggerSync(dp(72))
+        swipeRefresh.setOnChildScrollUpCallback { _, _ -> recycler.canScrollVertically(-1) }
+        swipeRefresh.setOnRefreshListener { refreshList() }
+
         adapter.refresh()
         attachSwipe()
         setupActionRow()
@@ -228,8 +245,8 @@ class MainActivity : AppCompatActivity() {
 
         updateSelectionUi()
         updateNavCounts()
-        selectCatRow(cat)
-        setHeaderTitle(getString(Cat.ALL.titleRes))
+        selectRows()
+        updateFilterTitle()
         handleIntent(intent)
 
         // 首次布局完成后再检查上次崩溃（此时 header 也已就绪）
@@ -322,7 +339,11 @@ class MainActivity : AppCompatActivity() {
     /** 一行分类：行视图 + 右侧数量 */
     private class NavRow(val root: View, val count: TextView?)
 
-    private val catRows = LinkedHashMap<Cat, NavRow>()
+    /** 「任务」维度的行（含“全部下载”） */
+    private val statusRows = LinkedHashMap<Cat, NavRow>()
+
+    /** 「按类型分类」维度的行（含“全部类型”） */
+    private val typeRows = LinkedHashMap<Cat, NavRow>()
 
     /** 侧边栏内容铺满整屏，文字内容避开状态栏 */
     private fun applyDrawerInset() {
@@ -340,7 +361,7 @@ class MainActivity : AppCompatActivity() {
         val bodyMore = findViewById<LinearLayout>(R.id.bodyMore)
 
         addCatRows(
-            bodyTasks, listOf(
+            bodyTasks, statusRows, status = true, listOf(
                 Triple(Cat.ALL, R.drawable.ic_nav_all, R.string.nav_all),
                 Triple(Cat.RUNNING, R.drawable.ic_nav_running, R.string.nav_running),
                 Triple(Cat.DONE, R.drawable.ic_nav_done, R.string.nav_done),
@@ -349,7 +370,8 @@ class MainActivity : AppCompatActivity() {
             )
         )
         addCatRows(
-            bodyTypes, listOf(
+            bodyTypes, typeRows, status = false, listOf(
+                Triple(Cat.ALL, R.drawable.ic_type_all, R.string.nav_all_types),
                 Triple(Cat.VIDEO, R.drawable.ic_cat_video, R.string.nav_video),
                 Triple(Cat.AUDIO, R.drawable.ic_cat_audio, R.string.nav_audio),
                 Triple(Cat.IMAGE, R.drawable.ic_cat_image, R.string.nav_image),
@@ -371,7 +393,17 @@ class MainActivity : AppCompatActivity() {
         setupSettings()
     }
 
-    private fun addCatRows(container: LinearLayout, items: List<Triple<Cat, Int, Int>>) {
+    /**
+     * 侧边栏的两组分类互相独立：
+     * 「任务」只看状态，「按类型分类」只看扩展名，两者可以同时生效（AND）。
+     * 每组都有自己的「全部」，默认两个维度都是全部。
+     */
+    private fun addCatRows(
+        container: LinearLayout,
+        target: LinkedHashMap<Cat, NavRow>,
+        status: Boolean,
+        items: List<Triple<Cat, Int, Int>>
+    ) {
         items.forEach { (c, icon, label) ->
             val row = layoutInflater.inflate(R.layout.item_nav_row, container, false)
             row.findViewById<ImageView>(R.id.navIcon).setImageResource(icon)
@@ -379,10 +411,10 @@ class MainActivity : AppCompatActivity() {
             val count = row.findViewById<TextView>(R.id.navCount)
             row.setOnClickListener {
                 drawer.closeDrawer(GravityCompat.START)
-                applyCat(c)
+                if (status) applyStatusCat(c) else applyTypeCat(c)
             }
             container.addView(row)
-            catRows[c] = NavRow(row, count)
+            target[c] = NavRow(row, count)
         }
     }
 
@@ -398,20 +430,52 @@ class MainActivity : AppCompatActivity() {
         container.addView(row)
     }
 
-    private fun applyCat(c: Cat) {
-        cat = c
-        selectCatRow(c)
-        adapter.category = c
-        setHeaderTitle(getString(c.titleRes))
+    private fun applyStatusCat(c: Cat) {
+        if (statusCat == c) return
+        statusCat = c
+        applyFilters()
+    }
+
+    private fun applyTypeCat(c: Cat) {
+        if (typeCat == c) return
+        typeCat = c
+        applyFilters()
+    }
+
+    /** 两个维度都写回适配器（任一变化都会触发一次 refresh） */
+    private fun applyFilters() {
+        selectRows()
+        adapter.statusCat = statusCat
+        adapter.typeCat = typeCat
         clearSearch()
+        updateFilterTitle()
         if (sortPanelOpen) collapseSortPanel()
         updateEmpty()
         recycler.scrollToPosition(0)
         playListEntrance()
     }
 
-    private fun selectCatRow(c: Cat) {
-        catRows.forEach { (k, row) -> row.root.isActivated = k == c }
+    /** 高亮当前生效的两行（两个维度各一行；都为“全部”时两行“全部”同时高亮） */
+    private fun selectRows() {
+        statusRows.forEach { (k, row) -> row.root.isActivated = k == statusCat }
+        typeRows.forEach { (k, row) -> row.root.isActivated = k == typeCat }
+    }
+
+    /** 当前筛选组合的标题：全部下载 / 已完成 / 视频 / 视频 · 已完成 */
+    private fun filterTitle(): String {
+        val parts = mutableListOf<String>()
+        if (typeCat != Cat.ALL) parts.add(getString(typeCat.titleRes))
+        if (statusCat != Cat.ALL) parts.add(getString(statusCat.titleRes))
+        return if (parts.isEmpty()) getString(Cat.ALL.titleRes) else parts.joinToString(" · ")
+    }
+
+    private fun updateFilterTitle() {
+        if (adapter.selectionMode) return
+        if (adapter.query.isNotBlank()) {
+            setHeaderTitle(getString(R.string.search))
+        } else {
+            setHeaderTitle(filterTitle())
+        }
     }
 
     // ---------- 可折叠分组 ----------
@@ -708,8 +772,12 @@ class MainActivity : AppCompatActivity() {
     private fun updateNavCounts() {
         try {
             val tasks = synchronized(Repo.tasks) { Repo.tasks.toList() }
-            catRows.forEach { (c, row) ->
-                setTextIfChanged(row.count, tasks.count { FileTypes.matches(c, it) }.toString())
+            // 两个维度分别计数：任务行只看状态，类型行只看扩展名
+            statusRows.forEach { (c, row) ->
+                setTextIfChanged(row.count, tasks.count { FileTypes.matchesStatus(c, it) }.toString())
+            }
+            typeRows.forEach { (c, row) ->
+                setTextIfChanged(row.count, tasks.count { FileTypes.matchesType(c, it) }.toString())
             }
             setTextIfChanged(findViewById<TextView>(R.id.tvStatTasks), tasks.size.toString())
             setTextIfChanged(
@@ -785,10 +853,10 @@ class MainActivity : AppCompatActivity() {
             emptyWrap.visibility = if (empty) View.VISIBLE else View.GONE
         }
         if (!empty) return
-        val text = if (adapter.query.isNotBlank()) {
-            getString(R.string.empty_search, adapter.query.trim())
-        } else {
-            getString(cat.emptyRes)
+        val text = when {
+            adapter.query.isNotBlank() -> getString(R.string.empty_search, adapter.query.trim())
+            typeCat != Cat.ALL -> getString(typeCat.emptyRes)
+            else -> getString(statusCat.emptyRes)
         }
         if (text != lastEmptyText) {
             lastEmptyText = text
@@ -829,6 +897,55 @@ class MainActivity : AppCompatActivity() {
     private var lastSpeedTick = 0L
     private var lastSpeedBytes = 0L
     private var totalSpeed = 0L
+
+    // ---------- 下拉刷新 ----------
+
+    /**
+     * 下拉刷新：后台线程重新读取 tasks.json，把新出现的任务合并进来，
+     * 再回主线程重绘列表与侧边栏计数。只合并数据，不动正在下载的任务。
+     */
+    private fun refreshList() {
+        if (swipeRefresh.isRefreshing) return
+        swipeRefresh.isRefreshing = true
+        val started = SystemClock.elapsedRealtime()
+        Thread {
+            val added = try {
+                Repo.reload(this)
+            } catch (e: Throwable) {
+                CrashHandler.recordSoftError(this, "刷新列表", e)
+                0
+            }
+            handler.post {
+                if (isFinishing || isDestroyed) return@post
+                applyRefreshedList(added)
+                val elapsed = SystemClock.elapsedRealtime() - started
+                handler.postDelayed({
+                    if (!isFinishing && !isDestroyed) swipeRefresh.isRefreshing = false
+                }, (MIN_REFRESH_MS - elapsed).coerceAtLeast(0))
+                Toast.makeText(
+                    this,
+                    if (added > 0) getString(R.string.refresh_found, added)
+                    else getString(R.string.refresh_done),
+                    Toast.LENGTH_SHORT
+                ).show()
+            }
+        }.start()
+    }
+
+    /** 主线程应用刷新结果（供下拉刷新与测试共用） */
+    internal fun applyRefreshedList(added: Int) {
+        adapter.refresh()
+        updateEmpty()
+        updateNavCounts()
+        updateSummary()
+    }
+
+    /** 同步刷新一次，返回新发现的任务数（测试 / 需要立即生效时使用） */
+    internal fun refreshNow(): Int {
+        val added = Repo.reload(this)
+        applyRefreshedList(added)
+        return added
+    }
 
     private fun onPauseResume(task: DownloadTask) {
         when (task.status) {
@@ -1122,7 +1239,7 @@ class MainActivity : AppCompatActivity() {
             } else if (adapter.query.isNotBlank()) {
                 getString(R.string.search)
             } else {
-                getString(cat.titleRes)
+                filterTitle()
             }
         )
         invalidateOptionsMenu()
@@ -1391,16 +1508,14 @@ class MainActivity : AppCompatActivity() {
 
             override fun onQueryTextChange(newText: String?): Boolean {
                 adapter.query = newText.orEmpty()
-                if (newText.isNullOrBlank() && !adapter.selectionMode) {
-                    setHeaderTitle(getString(cat.titleRes))
-                }
+                updateFilterTitle()
                 updateEmpty()
                 return true
             }
         })
         sv.setOnCloseListener {
             adapter.query = ""
-            if (!adapter.selectionMode) setHeaderTitle(getString(cat.titleRes))
+            updateFilterTitle()
             updateEmpty()
             false
         }
@@ -1514,5 +1629,8 @@ class MainActivity : AppCompatActivity() {
 
         /** ItemTouchHelper 把卡片滑出屏幕的动画约 250ms，等它结束再复位 */
         const val SWIPE_SETTLE_MS = 320L
+
+        /** 下拉刷新至少转这么久，避免闪一下就消失 */
+        const val MIN_REFRESH_MS = 420L
     }
 }
