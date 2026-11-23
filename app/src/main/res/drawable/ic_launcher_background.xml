@@ -1,10 +1,36 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 自适应图标背景：iOS 风格蓝色垂直渐变 -->
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <gradient
-        android:angle="270"
-        android:endColor="#005CE8"
-        android:startColor="#56B0FF"
-        android:type="linear" />
-</shape>
+<!-- 自适应图标背景：深紫极光渐变（与桌面 PNG 图标同色系） -->
+<layer-list xmlns:android="http://schemas.android.com/apk/res/android">
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:angle="315"
+                android:centerColor="#4C1D95"
+                android:endColor="#7C3AED"
+                android:startColor="#2A1A63"
+                android:type="linear" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:centerX="0.78"
+                android:centerY="0.12"
+                android:endColor="#00C4B5FD"
+                android:gradientRadius="96dp"
+                android:startColor="#8CC4B5FD"
+                android:type="radial" />
+        </shape>
+    </item>
+    <item>
+        <shape android:shape="rectangle">
+            <gradient
+                android:centerX="0.12"
+                android:centerY="0.9"
+                android:endColor="#0022D3EE"
+                android:gradientRadius="86dp"
+                android:startColor="#6122D3EE"
+                android:type="radial" />
+        </shape>
+    </item>
+</layer-list>

@@ -15,20 +15,13 @@
         android:gravity="center_vertical"
         android:orientation="horizontal">
 
-        <FrameLayout
+        <!-- 与桌面/应用信息使用同一个图标，换图标时自动同步 -->
+        <ImageView
+            android:id="@+id/ivNavIcon"
             android:layout_width="46dp"
             android:layout_height="46dp"
-            android:background="@drawable/bg_ios_appicon">
-
-            <ImageView
-                android:id="@+id/ivNavIcon"
-                android:layout_width="26dp"
-                android:layout_height="26dp"
-                android:layout_gravity="center"
-                android:contentDescription="@string/app_name"
-                android:src="@drawable/ic_download"
-                android:tint="@color/white" />
-        </FrameLayout>
+            android:contentDescription="@string/app_name"
+            android:src="@mipmap/ic_launcher" />
 
         <LinearLayout
             android:layout_width="wrap_content"

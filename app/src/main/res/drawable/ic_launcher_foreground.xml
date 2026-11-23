@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- 自适应图标前景：居中白色下载符号（安全区内） -->
+<!-- 自适应图标前景：M 品牌符号（缩放到安全区内，与桌面 PNG 比例一致） -->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
@@ -9,29 +9,14 @@
     <group
         android:pivotX="512"
         android:pivotY="512"
-        android:scaleX="0.94"
-        android:scaleY="0.94">
+        android:scaleX="0.66"
+        android:scaleY="0.66">
 
-        <!-- 竖干 -->
         <path
-            android:pathData="M512,232 L512,532"
+            android:pathData="M306 744 L306 336 L512 592 L718 336 L718 744"
             android:strokeColor="#FFFFFF"
-            android:strokeWidth="90"
-            android:strokeLineCap="round" />
-
-        <!-- 实心三角箭头：描边加圆角 -->
-        <path
-            android:pathData="M362,502 L662,502 L512,648 Z"
-            android:fillColor="#FFFFFF"
-            android:strokeColor="#FFFFFF"
-            android:strokeWidth="60"
+            android:strokeWidth="104"
+            android:strokeLineCap="round"
             android:strokeLineJoin="round" />
-
-        <!-- 底部托线 -->
-        <path
-            android:pathData="M302,772 L722,772"
-            android:strokeColor="#FFFFFF"
-            android:strokeWidth="88"
-            android:strokeLineCap="round" />
     </group>
 </vector>
