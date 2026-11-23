@@ -91,3 +91,15 @@ jobs:
             - 修复上一版侧边栏图标与桌面图标不一致的问题
 
             签名证书 SHA-256：`44:05:EE:13:56:C4:7A:DF:95:4F:A1:89:BB:BD:62:C0:45:32:8F:66:F7:98:A5:4C:8E:95:0A:70:BC:D1:9F:86`
+
+      # 构建结果回写为轻量标签，便于在无 API 权限时确认流水线是否真的跑过
+      - name: Report pipeline status
+        if: always()
+        continue-on-error: true
+        run: |
+          set -e
+          TAG="ci/${RELEASE_TAG}-${{ job.status }}"
+          git config user.name "github-actions[bot]"
+          git config user.email "41898282+github-actions[bot]@users.noreply.github.com"
+          git tag -f "$TAG" "$GITHUB_SHA"
+          git push -f origin "refs/tags/$TAG"
