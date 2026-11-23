@@ -341,13 +341,27 @@ class MainActivity : AppCompatActivity() {
         return super.dispatchTouchEvent(ev)
     }
 
-    /** 搜索框展开时，点它外面的任意位置都退出搜索（列表、空白、按钮都算） */
+    /**
+     * 搜索框展开时点它外面：
+     * - 已经有搜索词 → 保留搜索状态和结果，只收回键盘与焦点，避免误点把关键字清掉；
+     * - 还没有搜索词 → 直接退出搜索，把输入框收成图标。
+     */
     private fun collapseSearchOnOutsideTouch(ev: MotionEvent) {
         val sv = searchView ?: return
         val item = searchItem ?: return
         if (!item.isActionViewExpanded || sv.isIconified) return
         if (isPointInside(sv, ev)) return
+        if (!sv.query.isNullOrEmpty()) {
+            hideSearchKeyboard(sv)
+            sv.clearFocus()
+            return
+        }
         collapseSearch()
+    }
+
+    private fun hideSearchKeyboard(sv: SearchView) {
+        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
+        imm?.hideSoftInputFromWindow(sv.windowToken, 0)
     }
 
     private fun isPointInside(view: View, ev: MotionEvent): Boolean {
@@ -361,8 +375,7 @@ class MainActivity : AppCompatActivity() {
     /** 退出搜索：收起键盘、清空关键字、把输入框收成图标 */
     internal fun collapseSearch() {
         val sv = searchView ?: return
-        val imm = getSystemService(Context.INPUT_METHOD_SERVICE) as? InputMethodManager
-        imm?.hideSoftInputFromWindow(sv.windowToken, 0)
+        hideSearchKeyboard(sv)
         sv.clearFocus()
         if (sv.query?.isNotEmpty() == true) sv.setQuery("", false)
         if (!sv.isIconified) sv.isIconified = true

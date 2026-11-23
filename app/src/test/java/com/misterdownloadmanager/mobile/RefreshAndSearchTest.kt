@@ -77,9 +77,9 @@ class RefreshAndSearchTest {
         }
     }
 
-    /** 搜索框展开后点列表空白处：收起输入框、清空关键字 */
+    /** 搜索框里已经有字时点列表空白：保留搜索与结果，只收回键盘 */
     @Test
-    fun tapOutsideCollapsesSearch() {
+    fun tapOutsideKeepsSearchWhenQueryNotEmpty() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 a.invalidateOptionsMenu()
@@ -102,9 +102,34 @@ class RefreshAndSearchTest {
                 // 点列表区域（搜索框之外）
                 tapAt(a, 20f, 1_600f)
 
-                assertTrue("点空白后输入框应收起", sv.isIconified)
-                assertEquals("退出搜索后应清空关键字", "", adapter.query)
-                assertFalse("菜单项不应再处于展开状态", item.isActionViewExpanded)
+                assertFalse("有关键字时点空白不应收起搜索", sv.isIconified)
+                assertTrue("搜索菜单项应保持展开", item.isActionViewExpanded)
+                assertEquals("关键字必须保留", "mp4", adapter.query)
+                assertEquals("输入框内容必须保留", "mp4", sv.query.toString())
+            }
+        }
+    }
+
+    /** 搜索框为空时点空白：直接退出搜索 */
+    @Test
+    fun tapOutsideCollapsesEmptySearch() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                a.invalidateOptionsMenu()
+                ShadowLooper.idleMainLooper()
+
+                val item = fieldOf(a, "searchItem") as MenuItem
+                val sv = fieldOf(a, "searchView") as SearchView
+                item.expandActionView()
+                ShadowLooper.idleMainLooper()
+                sv.isIconified = false
+                sv.setQuery("", false)
+                ShadowLooper.idleMainLooper()
+
+                tapAt(a, 20f, 1_600f)
+
+                assertTrue("没有关键字时点空白应收起搜索", sv.isIconified)
+                assertFalse(item.isActionViewExpanded)
             }
         }
     }
