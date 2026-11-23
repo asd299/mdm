@@ -296,4 +296,57 @@ class ScreenshotTest {
             }
         }
     }
+
+    /** 关于页：图标 / 名称 / 版本 + 各入口卡片 */
+    @Test
+    fun renderAbout() {
+        ActivityScenario.launch(AboutActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_about.png")
+
+                // 全页长图：确认底部致谢卡片与页脚也能正常排版
+                val content = a.findViewById<View>(android.R.id.content)
+                val body = (content as android.view.ViewGroup).getChildAt(0) as android.view.ViewGroup
+                val scroll = body.getChildAt(1) as android.widget.ScrollView
+                val page = scroll.getChildAt(0)
+                page.measure(
+                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
+                )
+                shot(
+                    page, 1080, page.measuredHeight,
+                    "/tmp/shot_about_full.png",
+                )
+            }
+        }
+    }
+
+    /** 版本更新说明：自下而上的面板 */
+    @Test
+    fun renderChangelog() {
+        ActivityScenario.launch(AboutActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                a.findViewById<View>(R.id.rowChangelog).performClick()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val d = ShadowDialog.getLatestDialog() ?: return@onActivity
+                shot(d.window!!.decorView, 1080, 2280, "/tmp/shot_changelog.png")
+                d.dismiss()
+            }
+        }
+    }
+
+    /** 崩溃日志页：圆润卡片风格 */
+    @Test
+    fun renderCrashLog() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        CrashHandler.recordSoftError(
+            ctx, "下载分段校验",
+            IllegalStateException("下载分段校验失败：连接提前中断"),
+        )
+        ActivityScenario.launch(CrashLogActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_crash.png")
+            }
+        }
+    }
 }

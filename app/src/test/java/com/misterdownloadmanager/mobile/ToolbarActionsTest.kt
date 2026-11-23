@@ -163,7 +163,8 @@ class ToolbarActionsTest {
                 }
                 walk(body)
 
-                assertEquals("侧边栏「更多」只应保留 2 项", 2, labels.size)
+                assertEquals("侧边栏「更多」只保留「关于」一项（崩溃日志已收进关于页）", 1, labels.size)
+                assertEquals(a.getString(R.string.nav_about), labels.first())
                 listOf(
                     a.getString(R.string.pause_all),
                     a.getString(R.string.resume_all),

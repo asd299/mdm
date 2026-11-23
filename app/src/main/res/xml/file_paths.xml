@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
 <paths>
     <external-files-path name="downloads" path="Download/" />
+    <!-- 直写公共「下载」目录后的成品（Android 9 及以下），用于打开/分享 -->
+    <external-path name="public_download" path="Download/" />
     <files-path name="internal" path="." />
 </paths>

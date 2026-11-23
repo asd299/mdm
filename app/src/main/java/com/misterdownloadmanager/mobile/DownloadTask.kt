@@ -48,10 +48,20 @@ class DownloadTask(
     var saveError: String? = null,
     /** 文件名是否由用户手动指定：为 true 时探测到的服务器文件名不会覆盖它 */
     var manualName: Boolean = false,
+    /**
+     * 直写公共「下载」目录时的落点：content:// uri 或绝对路径。
+     * 为空表示仍在应用私有目录里下载（自选保存目录、或 Android 9 及以下无写权限）。
+     */
+    var publicTarget: String? = null,
 ) {
     val downloadedBytes: Long get() = if (segments.isEmpty()) 0 else segments.sumOf { it.downloaded }
+
+    /** 仅私有目录模式使用；直写公共目录时不产生 .part 文件 */
     val partFile: File get() = File(dir, "$fileName.mdm.part")
     val finalFile: File get() = File(dir, fileName)
+
+    /** 是否正在直写公共下载目录 */
+    val writesPublic: Boolean get() = !publicTarget.isNullOrBlank()
 
     fun toJson(): JSONObject = JSONObject()
         .put("id", id)
@@ -70,6 +80,7 @@ class DownloadTask(
         .put("savedUri", savedUri ?: "")
         .put("saveError", saveError ?: "")
         .put("manualName", manualName)
+        .put("publicTarget", publicTarget ?: "")
         .put("segments", JSONArray().apply { segments.forEach { put(it.toJson()) } })
 
     companion object {
@@ -95,6 +106,7 @@ class DownloadTask(
                 savedUri = o.optString("savedUri", "").ifEmpty { null },
                 saveError = o.optString("saveError", "").ifEmpty { null },
                 manualName = o.optBoolean("manualName", false),
+                publicTarget = o.optString("publicTarget", "").ifEmpty { null },
             )
         }
     }
@@ -151,6 +163,8 @@ object Repo {
         synchronized(tasks) { tasks.removeAll { it.id == task.id } }
         task.partFile.delete()
         task.finalFile.delete()
+        // 直写公共目录的任务，删除时把未完成/已完成的条目一起清掉，避免留下孤儿文件
+        PublicStore.deleteToken(context, task.publicTarget)
         save(context)
     }
 

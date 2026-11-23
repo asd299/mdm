@@ -20,17 +20,15 @@ class MainActivityLaunchTest {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { a ->
                 check(a.findViewById<View>(R.id.drawer) != null) { "drawer 未找到" }
-                val version = a.findViewById<TextView>(R.id.tvNavVersion)
-                assertTrue("版本号未写入", version.text.isNotBlank())
                 val tasks = a.findViewById<TextView>(R.id.tvStatTasks)
                 assertTrue("统计未写入", tasks.text.isNotBlank())
             }
         }
     }
 
-    /** 侧边栏顶部（图标 / 名称 / 版本 / 统计）必须真实存在且可见 */
+    /** 侧边栏顶部只剩统计卡；图标 / 名称 / 版本已移到关于页 */
     @Test
-    fun drawerHeaderIsComplete() {
+    fun drawerHeaderKeepsOnlyStats() {
         ActivityScenario.launch(MainActivity::class.java).use { scenario ->
             scenario.onActivity { a ->
                 val panel = a.findViewById<View>(R.id.drawerPanel)
@@ -40,26 +38,17 @@ class MainActivityLaunchTest {
                 )
                 panel.layout(0, 0, 924, 2280)
 
-                val version = a.findViewById<TextView>(R.id.tvNavVersion)
                 val statTasks = a.findViewById<TextView>(R.id.tvStatTasks)
                 val statDone = a.findViewById<TextView>(R.id.tvStatDone)
                 val statSize = a.findViewById<TextView>(R.id.tvStatSize)
-                val title = a.findViewById<TextView>(R.id.tvNavTitle)
-                val icon = a.findViewById<View>(R.id.ivNavIcon)
 
-                assertEquals(View.VISIBLE, version.visibility)
                 assertEquals(View.VISIBLE, statTasks.visibility)
                 assertEquals(View.VISIBLE, statDone.visibility)
                 assertEquals(View.VISIBLE, statSize.visibility)
-                assertEquals(View.VISIBLE, title.visibility)
-                assertEquals(View.VISIBLE, icon.visibility)
 
                 // 头部必须真的占据屏幕顶部的可见区域
-                assertTrue("头部高度异常：${title.height}", title.height > 0)
                 assertTrue("统计卡片高度异常：${statTasks.height}", statTasks.height > 0)
                 assertTrue("统计卡片未显示在顶部：${statTasks.top}", statTasks.top < 400)
-                assertTrue("应用名称未显示", title.text.isNotBlank())
-                assertTrue("版本号未显示", version.text.isNotBlank())
             }
         }
     }
@@ -110,8 +99,8 @@ class MainActivityLaunchTest {
                 assertEquals(5, a.findViewById<android.widget.LinearLayout>(R.id.bodyTasks).childCount)
                 // 7 种文件类型 + 顶部的「全部类型」
                 assertEquals(8, a.findViewById<android.widget.LinearLayout>(R.id.bodyTypes).childCount)
-                // 批量操作已移到顶部工具栏，这里只剩「崩溃日志 / 关于」
-                assertEquals(2, a.findViewById<android.widget.LinearLayout>(R.id.bodyMore).childCount)
+                // 批量操作已移到顶部工具栏，「崩溃日志」收进关于页，这里只剩「关于」
+                assertEquals(1, a.findViewById<android.widget.LinearLayout>(R.id.bodyMore).childCount)
             }
         }
     }

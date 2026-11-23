@@ -10,6 +10,7 @@ import android.content.Intent
 import android.graphics.Canvas
 import android.graphics.Color
 import android.graphics.Paint
+import android.graphics.Rect
 import android.graphics.RectF
 import android.net.Uri
 import android.os.Build
@@ -184,8 +185,7 @@ class MainActivity : AppCompatActivity() {
         })
         buildNav()
         applyDrawerInset()
-        findViewById<TextView>(R.id.tvNavVersion).text =
-            getString(R.string.version_label, BuildConfig.VERSION_NAME)
+        watchImeVisibility()
 
         // 读取上次排序方式与方向（兼容旧版本的 TIME_DESC / TIME_ASC）
         sortMode = SortMode.fromPref(prefs().getString("sort_mode", null))
@@ -243,8 +243,12 @@ class MainActivity : AppCompatActivity() {
         findViewById<View>(R.id.btnSelShare).setOnClickListener { shareSelected() }
         findViewById<View>(R.id.btnSelDelete).setOnClickListener { deleteSelected() }
 
-        if (Build.VERSION.SDK_INT <= 28) {
-            ContextCompat.checkSelfPermission(this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE)
+        // Android 9 及以下直写公共下载目录需要写权限；已有权限就不必再弹
+        if (Build.VERSION.SDK_INT <= 28 &&
+            ContextCompat.checkSelfPermission(
+                this, android.Manifest.permission.WRITE_EXTERNAL_STORAGE
+            ) != android.content.pm.PackageManager.PERMISSION_GRANTED
+        ) {
             requestPermissions(arrayOf(android.Manifest.permission.WRITE_EXTERNAL_STORAGE), 1)
         }
 
@@ -385,6 +389,47 @@ class MainActivity : AppCompatActivity() {
         updateEmpty()
     }
 
+    // ---------- 输入法收起 = 结束搜索 ----------
+
+    /** 上一次布局时输入法是否可见，用来识别「刚刚收起」这个瞬间 */
+    private var imeVisible = false
+
+    /**
+     * 监听输入法可见性。
+     *
+     * 用户按键盘上的「收起」/返回键时，系统只是隐藏输入法，SearchView 仍然展开、
+     * 关键字也还在——界面看起来像卡在搜索态。这里把「收起输入法」统一当成结束输入：
+     * 没有关键字就退出搜索，已经有字则保留搜索结果（与点空白的规则一致）。
+     */
+    private fun watchImeVisibility() {
+        val root = findViewById<View>(android.R.id.content) ?: return
+        root.viewTreeObserver.addOnGlobalLayoutListener {
+            if (isFinishing || isDestroyed) return@addOnGlobalLayoutListener
+            val frame = Rect()
+            root.getWindowVisibleDisplayFrame(frame)
+            val screenHeight = root.rootView.height.takeIf { it > 0 }
+                ?: resources.displayMetrics.heightPixels
+            val covered = screenHeight - frame.bottom
+            val visible = covered > dp(100)
+            val wasVisible = imeVisible
+            imeVisible = visible
+            if (wasVisible && !visible) onImeHidden()
+        }
+    }
+
+    /** 输入法刚收起：无关键字退出搜索，有关键字保留搜索状态 */
+    internal fun onImeHidden() {
+        val sv = searchView ?: return
+        val item = searchItem ?: return
+        if (!item.isActionViewExpanded || sv.isIconified) return
+        if (sv.query.isNullOrEmpty()) {
+            // 放到下一帧再做，避免在布局回调里直接收起 ActionView 触发重复布局
+            sv.post { collapseSearch() }
+        } else {
+            sv.clearFocus()
+        }
+    }
+
     // ---------- 侧边栏 ----------
 
     /** 一行分类：行视图 + 右侧数量 */
@@ -433,7 +478,7 @@ class MainActivity : AppCompatActivity() {
             )
         )
 
-        addActionRow(bodyMore, R.drawable.ic_bug, R.string.crash_log) { CrashLogActivity.safeStart(this) }
+        // 「崩溃日志」与「关于」都收进关于页，侧边栏只留一个入口
         addActionRow(bodyMore, R.drawable.ic_info, R.string.nav_about) { showAbout() }
 
         setupCollapsible(R.id.hdrTasks, R.id.bodyTasks, R.id.chevTasks, "tasks")
@@ -850,11 +895,7 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun showAbout() {
-        MaterialAlertDialogBuilder(this)
-            .setTitle(R.string.about_title)
-            .setMessage(getString(R.string.about_text) + "\n\n" + getString(R.string.version_label, BuildConfig.VERSION_NAME))
-            .setPositiveButton(android.R.string.ok, null)
-            .show()
+        startActivity(Intent(this, AboutActivity::class.java))
     }
 
     // ---------- 列表 ----------
@@ -1147,7 +1188,7 @@ class MainActivity : AppCompatActivity() {
         }
         view.findViewById<View>(R.id.btnPropOpen).setOnClickListener {
             dialog.dismiss()
-            if (task.status == Status.COMPLETED && task.finalFile.exists()) openFile(task)
+            if (task.status == Status.COMPLETED && openableUri(task) != null) openFile(task)
             else Toast.makeText(this, R.string.prop_not_openable, Toast.LENGTH_SHORT).show()
         }
         view.findViewById<View>(R.id.btnPropClose).setOnClickListener { dialog.dismiss() }
@@ -1210,31 +1251,13 @@ class MainActivity : AppCompatActivity() {
     )
 
     private fun openFile(task: DownloadTask) {
-        val f = task.finalFile
         val mime = DownloadEngine.guessMime(task.fileName)
-        if (!f.exists()) {
-            // 临时文件被清理时，改用保存到目录后的 content Uri
-            val saved = task.savedUri?.let { s ->
-                try {
-                    Uri.parse(s)
-                } catch (_: Exception) {
-                    null
-                }
-            }
-            if (saved != null) {
-                try {
-                    startActivity(
-                        Intent(Intent.ACTION_VIEW).setDataAndType(saved, mime)
-                            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-                    )
-                    return
-                } catch (_: Exception) {
-                }
-            }
+        val uri = openableUri(task)
+        if (uri == null) {
+            // 直写公共目录后私有副本已删除，这里再兜底查一次落点是否还在
             Toast.makeText(this, "文件不存在", Toast.LENGTH_SHORT).show()
             return
         }
-        val uri = FileProvider.getUriForFile(this, "com.misterdownloadmanager.mobile.files", f)
         val i = Intent(Intent.ACTION_VIEW).setDataAndType(uri, mime)
         i.addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
         try {
@@ -1242,6 +1265,37 @@ class MainActivity : AppCompatActivity() {
         } catch (e: Exception) {
             Toast.makeText(this, "没有可打开此文件的应用", Toast.LENGTH_SHORT).show()
         }
+    }
+
+    /**
+     * 找到能交给其它应用打开的文件 Uri。
+     *
+     * 现在的任务默认直写公共「下载」目录，完成后会删掉私有副本，
+     * 所以不能只看 finalFile：savedUri 可能是 MediaStore 的 content://，
+     * 也可能是 Android 9 及以下公共目录里的绝对路径。
+     */
+    private fun openableUri(task: DownloadTask): Uri? {
+        val f = task.finalFile
+        if (f.exists()) return runCatching {
+            FileProvider.getUriForFile(this, FILE_AUTHORITY, f)
+        }.getOrNull()
+
+        val saved = task.savedUri?.takeIf { it.isNotBlank() }
+        if (saved != null) {
+            if (saved.startsWith("content:")) return Uri.parse(saved)
+            val public = File(saved)
+            if (public.exists()) return runCatching {
+                FileProvider.getUriForFile(this, FILE_AUTHORITY, public)
+            }.getOrNull()
+        }
+        val loc = task.savedLocation
+        if (loc.startsWith("/")) {
+            val public = File(loc)
+            if (public.exists()) return runCatching {
+                FileProvider.getUriForFile(this, FILE_AUTHORITY, public)
+            }.getOrNull()
+        }
+        return null
     }
 
     /** 保存到所选目录失败后，手动重试一次（文件仍在应用临时目录里） */
@@ -1276,8 +1330,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun shareTask(task: DownloadTask) {
-        if (task.status == Status.COMPLETED && task.finalFile.exists()) {
-            val uri = FileProvider.getUriForFile(this, "com.misterdownloadmanager.mobile.files", task.finalFile)
+        val uri = if (task.status == Status.COMPLETED) openableUri(task) else null
+        if (uri != null) {
             val send = Intent(Intent.ACTION_SEND).setType(DownloadEngine.guessMime(task.fileName))
                 .putExtra(Intent.EXTRA_STREAM, uri)
                 .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
@@ -1694,6 +1748,9 @@ class MainActivity : AppCompatActivity() {
 
     companion object {
         const val ACTION_QUICK_ADD = "com.misterdownloadmanager.mobile.QUICK_ADD"
+
+        /** FileProvider authority（与 AndroidManifest 中一致） */
+        const val FILE_AUTHORITY = "com.misterdownloadmanager.mobile.files"
 
         /** ItemTouchHelper 把卡片滑出屏幕的动画约 250ms，等它结束再复位 */
         const val SWIPE_SETTLE_MS = 320L

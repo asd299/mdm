@@ -190,6 +190,25 @@
     <string name="about_title">关于 Mister 下载管理器</string>
     <string name="about_text">一款轻量的 Android 多线程下载管理器。\n\n· 多线程分段下载，支持断点续传\n· 支持浏览器接入（Via 原生下载器选择）\n· 按状态/类型分类、排序与搜索\n· 批量暂停、继续、删除、分享\n\n基于开源项目 misterdownloadmanager 思路实现。</string>
 
+    <!-- 关于页 -->
+    <string name="about_version_row">版本 %1$s（%2$d）</string>
+    <string name="about_tagline">轻量 · 多线程分段 · 断点续传</string>
+    <string name="about_section_help">帮助与反馈</string>
+    <string name="about_section_about">关于本应用</string>
+    <string name="about_changelog">版本更新说明</string>
+    <string name="about_changelog_sub">每个版本改了什么</string>
+    <string name="about_crash_log_sub">上次运行的异常记录</string>
+    <string name="about_features">下载的文件会直接保存到系统「下载」目录，只出现在文件管理器里，不计入应用数据，卸载应用也不会删掉。\n\n下载采用多线程分段 + 断点续传：网络中断或手动暂停后，继续时会从断点接着下。\n\n其它应用里的链接可以交给本应用下载；添加任务前会检查重复链接、重复文件名与目录里的同名文件，由你决定跳过、改名还是覆盖。\n\n所有任务记录只保存在本机，不上传、不统计。</string>
+    <string name="about_credit">致谢</string>
+    <string name="about_credit_body">本应用的多线程分段下载设计来自开源项目 Mister Download Manager（纯 Rust 桌面下载管理器）。感谢原作者 anefzaoui 与所有贡献者，让这套下载思路能在移动端复用。</string>
+    <string name="about_project_owner">anefzaoui / misterdownloadmanager</string>
+    <string name="about_open_failed">没有可以打开链接的应用</string>
+    <string name="about_footer">用 Kotlin 从零实现 · 数据仅保存在本机</string>
+    <string name="changelog_title">版本更新说明</string>
+    <string name="changelog_subtitle">从新到旧，记录每个版本的变化</string>
+    <string name="changelog_current">当前版本</string>
+    <string name="changelog_close">关闭</string>
+
     <!-- 添加任务的重复检测 -->
     <string name="conflict_title">发现重复任务</string>
     <string name="conflict_link">已有该下载链接（%1$s）：%2$s</string>

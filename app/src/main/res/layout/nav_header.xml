@@ -5,53 +5,13 @@
     android:background="@color/ios_card"
     android:orientation="vertical"
     android:paddingStart="20dp"
-    android:paddingTop="22dp"
+    android:paddingTop="18dp"
     android:paddingEnd="20dp"
     android:paddingBottom="14dp">
 
     <LinearLayout
-        android:layout_width="wrap_content"
-        android:layout_height="wrap_content"
-        android:gravity="center_vertical"
-        android:orientation="horizontal">
-
-        <!-- 与桌面图标同一份图（squircle 位图，避免自适应图标在 ImageView 里被画成方形） -->
-        <ImageView
-            android:id="@+id/ivNavIcon"
-            android:layout_width="46dp"
-            android:layout_height="46dp"
-            android:contentDescription="@string/app_name"
-            android:src="@drawable/app_icon" />
-
-        <LinearLayout
-            android:layout_width="wrap_content"
-            android:layout_height="wrap_content"
-            android:layout_marginStart="12dp"
-            android:orientation="vertical">
-
-            <TextView
-                android:id="@+id/tvNavTitle"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:text="@string/app_name"
-                android:textColor="@color/ios_label"
-                android:textSize="19sp"
-                android:textStyle="bold" />
-
-            <TextView
-                android:id="@+id/tvNavVersion"
-                android:layout_width="wrap_content"
-                android:layout_height="wrap_content"
-                android:layout_marginTop="2dp"
-                android:textColor="@color/ios_label_2"
-                android:textSize="12sp" />
-        </LinearLayout>
-    </LinearLayout>
-
-    <LinearLayout
         android:layout_width="match_parent"
         android:layout_height="wrap_content"
-        android:layout_marginTop="16dp"
         android:background="@drawable/bg_ios_input"
         android:orientation="horizontal"
         android:paddingStart="14dp"

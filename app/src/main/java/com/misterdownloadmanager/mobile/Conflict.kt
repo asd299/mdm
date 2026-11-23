@@ -43,12 +43,16 @@ object ConflictChecker {
     /**
      * 查找冲突；没有冲突返回 null。
      * 文件名对不上（同链接不同名）也算冲突，因为链接重复本身要提示。
+     *
+     * @param existingNames 公共「下载」目录里已有的文件名（小写）。任务现在直接写公共目录，
+     *                      只在应用私有目录里找同名文件是查不到的。
      */
     fun find(
         url: String,
         fileName: String,
         tasks: List<DownloadTask>,
         dir: File,
+        existingNames: Set<String> = emptySet(),
     ): Conflict? {
         val target = normalizeUrl(url)
         val linkTask = tasks.firstOrNull {
@@ -58,7 +62,9 @@ object ConflictChecker {
         val nameTask = if (name.isEmpty()) null else tasks.firstOrNull {
             it.fileName.equals(name, ignoreCase = true)
         }
-        val onDisk = name.isNotEmpty() && File(dir, name).exists()
+        val onDisk = name.isNotEmpty() && (
+            File(dir, name).exists() || existingNames.contains(name.lowercase())
+            )
         if (linkTask == null && nameTask == null && !onDisk) return null
         return Conflict(url, name, linkTask, nameTask, onDisk)
     }
@@ -67,7 +73,12 @@ object ConflictChecker {
      * 生成不冲突的编号文件名：`电影.mp4` → `电影(1).mp4` → `电影(2).mp4`…
      * 同时避开任务列表里已占用的名字和目录里已存在的文件。
      */
-    fun numberedName(name: String, tasks: List<DownloadTask>, dir: File): String {
+    fun numberedName(
+        name: String,
+        tasks: List<DownloadTask>,
+        dir: File,
+        existingNames: Set<String> = emptySet(),
+    ): String {
         val trimmed = name.trim().ifEmpty { "download.bin" }
         val dot = trimmed.lastIndexOf('.')
         val base = if (dot > 0) trimmed.substring(0, dot) else trimmed
@@ -77,7 +88,8 @@ object ConflictChecker {
             val candidate = "$base($i)$ext"
             val taken = tasks.any { it.fileName.equals(candidate, ignoreCase = true) } ||
                 File(dir, candidate).exists() ||
-                File(dir, "$candidate.mdm.part").exists()
+                File(dir, "$candidate.mdm.part").exists() ||
+                existingNames.contains(candidate.lowercase())
             if (!taken) return candidate
             i++
         }

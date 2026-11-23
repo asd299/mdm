@@ -23,6 +23,7 @@ class CrashLogActivity : AppCompatActivity() {
         }
 
         val tv = findViewById<TextView>(R.id.tvCrashLog)
+        val scroll = findViewById<android.widget.ScrollView>(R.id.crashScroll)
         val btnCopy = findViewById<View>(R.id.btnCopy)
         val btnShare = findViewById<View>(R.id.btnShare)
         val btnClear = findViewById<View>(R.id.btnClear)
@@ -30,11 +31,15 @@ class CrashLogActivity : AppCompatActivity() {
         content = CrashHandler.readLast(this).orEmpty()
         if (content.isBlank()) {
             tv.text = getString(R.string.crash_empty)
-            btnCopy.alpha = 0.4f
-            btnShare.alpha = 0.4f
-            btnClear.alpha = 0.4f
+            btnCopy.isEnabled = false
+            btnShare.isEnabled = false
+            btnCopy.alpha = 0.45f
+            btnShare.alpha = 0.45f
         } else {
             tv.text = content
+            // textIsSelectable 的 TextView 拿到焦点后会自动把内容滚到中间，
+            // 用户进来第一眼看不到日志开头，这里强制回到顶部。
+            scroll.post { scroll.scrollTo(0, 0) }
             // 进入页面时顺便再放一次剪切板，方便直接粘贴
             CrashHandler.copyToClipboard(this, content)
         }

@@ -3,86 +3,130 @@
     xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="match_parent"
-    android:background="@color/mdm_surface"
+    android:background="@color/ios_bg"
     android:orientation="vertical">
 
     <com.google.android.material.appbar.MaterialToolbar
         android:id="@+id/crashToolbar"
         android:layout_width="match_parent"
-        android:layout_height="?attr/actionBarSize"
-        android:background="@color/mdm_primary"
+        android:layout_height="56dp"
+        android:background="@android:color/transparent"
         app:navigationIcon="@drawable/ic_back"
-        app:title="@string/crash_log"
-        app:titleTextColor="@color/white" />
-
-    <TextView
-        android:layout_width="match_parent"
-        android:layout_height="wrap_content"
-        android:background="#0D1565C0"
-        android:paddingStart="16dp"
-        android:paddingTop="8dp"
-        android:paddingEnd="16dp"
-        android:paddingBottom="8dp"
-        android:text="@string/crash_tip"
-        android:textColor="@color/mdm_primary"
-        android:textSize="12sp" />
-
-    <ScrollView
-        android:layout_width="match_parent"
-        android:layout_height="0dp"
-        android:layout_weight="1"
-        android:fillViewport="true"
-        android:padding="12dp">
+        app:navigationIconTint="@color/ios_label"
+        app:title=""
+        app:titleTextColor="@color/ios_label">
 
         <TextView
-            android:id="@+id/tvCrashLog"
+            android:layout_width="wrap_content"
+            android:layout_height="wrap_content"
+            android:layout_marginStart="2dp"
+            android:letterSpacing="-0.02"
+            android:text="@string/crash_log"
+            android:textColor="@color/ios_label"
+            android:textSize="25sp"
+            android:textStyle="bold" />
+    </com.google.android.material.appbar.MaterialToolbar>
+
+    <!-- 提示条常驻在标题下方：日志再长也不会把它滚走 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="4dp"
+        android:layout_marginEnd="18dp"
+        android:background="@drawable/bg_ios_input"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="11dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="11dp">
+
+        <TextView
             android:layout_width="match_parent"
             android:layout_height="wrap_content"
-            android:fontFamily="monospace"
-            android:textColor="#37474F"
-            android:textIsSelectable="true"
-            android:textSize="11sp" />
-    </ScrollView>
+            android:lineSpacingExtra="3dp"
+            android:text="@string/crash_tip"
+            android:textColor="@color/ios_blue"
+            android:textSize="12sp" />
+    </LinearLayout>
+
+    <!-- 日志卡片占满剩余高度，内容在卡片内部滚动，圆角始终完整 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_marginStart="18dp"
+        android:layout_marginTop="12dp"
+        android:layout_marginEnd="18dp"
+        android:layout_marginBottom="10dp"
+        android:layout_weight="1"
+        android:background="@drawable/bg_ios_card"
+        android:orientation="vertical"
+        android:paddingStart="16dp"
+        android:paddingTop="14dp"
+        android:paddingEnd="16dp"
+        android:paddingBottom="14dp">
+
+        <ScrollView
+            android:id="@+id/crashScroll"
+            android:layout_width="match_parent"
+            android:layout_height="match_parent"
+            android:clipToPadding="false"
+            android:overScrollMode="never">
+
+            <TextView
+                android:id="@+id/tvCrashLog"
+                android:layout_width="match_parent"
+                android:layout_height="wrap_content"
+                android:fontFamily="monospace"
+                android:lineSpacingExtra="2dp"
+                android:textColor="@color/ios_label"
+                android:textIsSelectable="true"
+                android:textSize="11sp" />
+        </ScrollView>
+    </LinearLayout>
 
     <LinearLayout
         android:layout_width="match_parent"
-        android:layout_height="58dp"
-        android:background="@color/white"
-        android:elevation="8dp"
-        android:gravity="center"
-        android:orientation="horizontal">
+        android:layout_height="wrap_content"
+        android:orientation="horizontal"
+        android:paddingStart="14dp"
+        android:paddingTop="4dp"
+        android:paddingEnd="14dp"
+        android:paddingBottom="16dp">
 
         <TextView
             android:id="@+id/btnCopy"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginEnd="8dp"
             android:layout_weight="1"
-            android:background="?attr/selectableItemBackground"
+            android:background="@drawable/bg_action_pill"
             android:gravity="center"
             android:text="@string/copy_log"
-            android:textColor="@color/mdm_primary"
-            android:textSize="13sp" />
+            android:textColor="@color/ios_blue"
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/btnShare"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="44dp"
+            android:layout_marginEnd="8dp"
             android:layout_weight="1"
-            android:background="?attr/selectableItemBackground"
+            android:background="@drawable/bg_action_pill"
             android:gravity="center"
             android:text="@string/share"
-            android:textColor="@color/mdm_primary"
-            android:textSize="13sp" />
+            android:textColor="@color/ios_blue"
+            android:textSize="14sp" />
 
         <TextView
             android:id="@+id/btnClear"
             android:layout_width="0dp"
-            android:layout_height="match_parent"
+            android:layout_height="44dp"
             android:layout_weight="1"
-            android:background="?attr/selectableItemBackground"
+            android:background="@drawable/bg_action_pill"
             android:gravity="center"
             android:text="@string/crash_clear"
-            android:textColor="@color/status_failed"
-            android:textSize="13sp" />
+            android:textColor="@color/ios_red"
+            android:textSize="14sp" />
     </LinearLayout>
 </LinearLayout>

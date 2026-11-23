@@ -19,13 +19,17 @@ class AddCoordinator(
     fun submit(url: String, name: String, manual: Boolean, startNow: Boolean) {
         val dir = File(DownloadEngine.downloadDir(activity))
         val tasks = synchronized(Repo.tasks) { Repo.tasks.toList() }
-        val conflict = ConflictChecker.find(url, name, tasks, dir)
+        val conflict = ConflictChecker.find(url, name, tasks, dir, publicNames())
         if (conflict == null) {
             enqueue(url, name, manual, startNow)
         } else {
             showConflict(conflict, url, manual, startNow, dir)
         }
     }
+
+    /** 任务直写公共「下载」目录时，那里已有的同名文件也要算冲突 */
+    private fun publicNames(): Set<String> =
+        if (PublicStore.eligible(activity)) PublicStore.existingNames(activity) else emptySet()
 
     private fun showConflict(
         conflict: Conflict,
@@ -65,7 +69,7 @@ class AddCoordinator(
         view.findViewById<android.view.View>(R.id.btnRename).setOnClickListener {
             val tasks = synchronized(Repo.tasks) { Repo.tasks.toList() }
             val base = conflict.fileName.ifBlank { guessName(url) }
-            val fresh = ConflictChecker.numberedName(base, tasks, dir)
+            val fresh = ConflictChecker.numberedName(base, tasks, dir, publicNames())
             dialog.dismiss()
             enqueue(url, fresh, manual = true, startNow = startNow)
         }
@@ -89,6 +93,9 @@ class AddCoordinator(
                     )
                 )
             }
+            // 「覆盖」意味着磁盘上的同名文件也要消失；只删任务不动公共目录，
+            // 系统会把它改名成 a (1).mp4，看起来就像没覆盖成功。
+            if (conflict.fileOnDisk) PublicStore.deleteByName(activity, conflict.fileName)
             dialog.dismiss()
             enqueue(url, conflict.fileName, manual, startNow)
         }
