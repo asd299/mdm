@@ -2,17 +2,17 @@
 
 > 由 `tools/gen_project_doc.py` 扫描源码注释与资源目录生成，请勿手动编辑。
 
-Kotlin 源码 **19** 个文件 / **5446** 行；布局 **15** 个；drawable **54** 个；动画 **7** 个；单元测试 **15** 个文件 / **90** 个用例。
+Kotlin 源码 **19** 个文件 / **5543** 行；布局 **15** 个；drawable **54** 个；动画 **7** 个；单元测试 **15** 个文件 / **90** 个用例。
 
 ## 代码
 
 | 文件 | 行数 | 职责 |
 |---|---:|---|
-| `AboutActivity.kt` | 131 | 关于页：应用信息、功能说明、致谢与版本更新说明 |
+| `AboutActivity.kt` | 214 | 关于页：应用信息、功能说明、致谢与版本更新说明 |
 | `AddCoordinator.kt` | 155 | 添加任务的统一入口：先做重复检测，冲突时弹窗让用户选「跳过 / 换个文件名 / 覆盖下载」 |
 | `AddDownloadDialog.kt` | 264 | 1DM 风格下载确认窗：链接 / 另存为 / 大小 / 续传状态 / 存储空间 / 仅限Wi-Fi / 出错重试 |
 | `Categories.kt` | 115 | 侧边栏分类：状态分类 + 文件类型分类 |
-| `Changelog.kt` | 63 | 版本更新记录与上游基线 |
+| `Changelog.kt` | 64 | 版本更新记录与上游基线 |
 | `Conflict.kt` | 98 | 冲突类型：只撞链接、只撞文件名，或两者都撞 |
 | `CrashHandler.kt` | 175 | 全局崩溃捕获 |
 | `CrashLogActivity.kt` | 95 | 崩溃 / 错误日志查看页，支持一键复制到剪切板 |
@@ -20,7 +20,7 @@ Kotlin 源码 **19** 个文件 / **5446** 行；布局 **15** 个；drawable **5
 | `DownloadService.kt` | 205 | 前台下载服务：管理任务队列、更新进度通知 |
 | `DownloadTask.kt` | 228 | 任务状态 |
 | `DownloadsAdapter.kt` | 524 | 下载列表适配器 |
-| `DrawerPanelLayout.kt` | 61 | 侧边栏面板容器：只有右侧两个角是圆角，并且**真的**把子视图裁进这两个圆角里 |
+| `DrawerPanelLayout.kt` | 74 | 侧边栏面板容器：只有右侧两个角是圆角，并且**真的**把子视图裁进这两个圆角里 |
 | `MainActivity.kt` | 1826 | 下拉刷新是否正在进行（不能用 isRefreshing 判断，手势触发时它已经是 true） |
 | `MdmApp.kt` | 12 | — |
 | `PromptActivity.kt` | 63 | 悬浮下载确认窗：别的应用把链接交给 MDM 时（分享文本 / 直接打开 http 链接 / 快捷添加） |

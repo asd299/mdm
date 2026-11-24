@@ -4,9 +4,7 @@ import android.view.View
 import android.widget.LinearLayout
 import android.widget.TextView
 import androidx.test.core.app.ActivityScenario
-import com.google.android.material.bottomsheet.BottomSheetDialog
 import org.junit.Assert.assertEquals
-import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
@@ -15,6 +13,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
 import org.robolectric.shadows.ShadowLooper
+import java.util.concurrent.TimeUnit
 
 /** 关于页：版本信息、入口、以及自下而上的版本更新面板 */
 @RunWith(RobolectricTestRunner::class)
@@ -61,8 +60,8 @@ class AboutPageTest {
                 ShadowLooper.idleMainLooper()
 
                 val dialog = ShadowDialog.getLatestDialog()
-                assertTrue("应弹出底部面板", dialog is BottomSheetDialog)
-                dialog.show()
+                assertNotNull("应弹出面板", dialog)
+                assertTrue("面板应真的显示出来", dialog!!.isShowing)
 
                 val list = dialog.findViewById<LinearLayout>(R.id.changeList)
                 assertNotNull("面板里应有版本列表", list)
@@ -76,48 +75,41 @@ class AboutPageTest {
         }
     }
 
-    /** 版本说明默认只展开半屏，点顶部组件才拉满 */
+    /**
+     * 面板默认半屏，点顶部组件才拉满；两种状态下底边都必须贴住屏幕底，
+     * 不能在下面露出一条半透明遮罩（旧实现把窗口设成 82% 高、窗口居中，底部就空了）。
+     */
     @Test
-    fun changelogStartsHalfExpandedAndExpandsOnHeaderTap() {
+    fun changelogSticksToBottomHalfThenExpands() {
         ActivityScenario.launch(AboutActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 a.findViewById<View>(R.id.rowChangelog).performClick()
                 ShadowLooper.idleMainLooper()
 
-                val dialog = ShadowDialog.getLatestDialog() as BottomSheetDialog
-                dialog.show()
-                ShadowLooper.idleMainLooper()
+                val dialog = ShadowDialog.getLatestDialog()!!
+                val host = dialog.findViewById<View>(R.id.changelogSheetHost)
+                val sheet = dialog.findViewById<View>(R.id.changelogSheet)
+                assertNotNull("面板载体应存在", host)
+                assertNotNull("面板应存在", sheet)
 
-                val behavior = dialog.behavior
-                assertFalse("要停半屏必须关掉 fitToContents", behavior.isFitToContents)
-                assertEquals("半屏比例", 0.62f, behavior.halfExpandedRatio, 0.001f)
-                assertTrue("不应停在折叠态", behavior.skipCollapsed)
+                val screenH = a.resources.displayMetrics.heightPixels
+                fun layoutNow() {
+                    host!!.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
+                    )
+                    host.layout(0, 0, 1080, screenH)
+                }
 
-                // Robolectric 不做真实布局，先给面板一个确定高度，半屏态才成立
-                val bottomSheet = dialog.findViewById<View>(
-                    com.google.android.material.R.id.design_bottom_sheet
-                )!!
-                val parent = bottomSheet.parent as View
-                parent.measure(
-                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(2280, View.MeasureSpec.EXACTLY),
-                )
-                parent.layout(0, 0, 1080, 2280)
-                behavior.state = com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HALF_EXPANDED
-                ShadowLooper.idleMainLooper()
-                assertEquals(
-                    "应能停在半屏",
-                    com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HALF_EXPANDED,
-                    behavior.state,
-                )
+                layoutNow()
+                assertEquals("默认应停半屏", (screenH * 0.62f).toInt(), sheet!!.height)
+                assertEquals("半屏时底边要贴住屏幕底", screenH, sheet.bottom)
 
-                dialog.findViewById<View>(R.id.sheetHeader)!!.performClick()
-                ShadowLooper.idleMainLooper()
-                assertEquals(
-                    "点顶部后应完全展开",
-                    com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_EXPANDED,
-                    behavior.state,
-                )
+                sheet.findViewById<View>(R.id.sheetHeader).performClick()
+                ShadowLooper.idleMainLooper(400, TimeUnit.MILLISECONDS)
+                layoutNow()
+                assertEquals("点顶部后应拉满", (screenH * 0.82f).toInt(), sheet.height)
+                assertEquals("拉满后底边仍要贴住屏幕底", screenH, sheet.bottom)
                 dialog.dismiss()
             }
         }

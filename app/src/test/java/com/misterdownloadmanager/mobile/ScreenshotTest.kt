@@ -356,27 +356,49 @@ class ScreenshotTest {
         }
     }
 
-    /** 版本更新说明：自下而上的面板 */
+    /** 版本更新说明：贴底的底部面板（半屏 / 拉满各一张，垫上关于页与遮罩） */
     @Test
     fun renderChangelog() {
         ActivityScenario.launch(AboutActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 a.findViewById<View>(R.id.rowChangelog).performClick()
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(600, java.util.concurrent.TimeUnit.MILLISECONDS)
                 val d = ShadowDialog.getLatestDialog() ?: return@onActivity
-                // Robolectric 不做真实布局，手动摆成半屏以接近真机首屏
-                val sheet = d.findViewById<View>(com.google.android.material.R.id.design_bottom_sheet)
-                (sheet?.parent as? View)?.let { parent ->
-                    parent.measure(
+                val screenH = a.resources.displayMetrics.heightPixels
+                val host = d.findViewById<View>(R.id.changelogSheetHost) ?: return@onActivity
+
+                fun stage(path: String) {
+                    host.requestLayout()
+                    host.measure(
                         View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
-                        View.MeasureSpec.makeMeasureSpec(2280, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
                     )
-                    parent.layout(0, 0, 1080, 2280)
-                    (d as com.google.android.material.bottomsheet.BottomSheetDialog).behavior.state =
-                        com.google.android.material.bottomsheet.BottomSheetBehavior.STATE_HALF_EXPANDED
-                    org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                    host.layout(0, 0, 1080, screenH)
+
+                    val bmp = Bitmap.createBitmap(1080, screenH, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bmp)
+                    a.window.decorView.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
+                    )
+                    a.window.decorView.layout(0, 0, 1080, screenH)
+                    a.window.decorView.draw(canvas)
+                    // 窗口遮罩不画在 decor 里，这里补一层，接近真机观感
+                    canvas.drawColor(android.graphics.Color.argb(89, 0, 0, 0))
+                    d.window!!.decorView.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
+                    )
+                    d.window!!.decorView.layout(0, 0, 1080, screenH)
+                    d.window!!.decorView.draw(canvas)
+                    File(path).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
                 }
-                shot(d.window!!.decorView, 1080, 2280, "/tmp/shot_changelog.png")
+
+                stage("/tmp/shot_changelog.png")
+
+                d.findViewById<View>(R.id.sheetHeader)?.performClick()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS)
+                stage("/tmp/shot_changelog_full.png")
                 d.dismiss()
             }
         }

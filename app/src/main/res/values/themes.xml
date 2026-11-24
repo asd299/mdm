@@ -74,6 +74,17 @@
     </style>
 
     <!-- ========== 底部面板（iOS 卡片风格） ========== -->
+    <!-- 版本说明面板：全屏透明窗口 + 自己贴底的面板，遮罩盖满整屏，面板底边不留缝 -->
+    <style name="Theme.MDM.Sheet" parent="Theme.AppCompat.Dialog">
+        <item name="android:windowIsFloating">false</item>
+        <item name="android:windowBackground">@android:color/transparent</item>
+        <item name="android:windowNoTitle">true</item>
+        <item name="android:windowContentOverlay">@null</item>
+        <item name="android:backgroundDimEnabled">true</item>
+        <item name="android:backgroundDimAmount">0.35</item>
+        <item name="android:windowAnimationStyle">@null</item>
+    </style>
+
     <style name="ThemeOverlay.MDM.BottomSheetDialog" parent="ThemeOverlay.Material3.BottomSheetDialog">
         <item name="bottomSheetStyle">@style/Widget.MDM.BottomSheet</item>
         <item name="colorSurfaceContainerLow">@color/ios_card</item>
