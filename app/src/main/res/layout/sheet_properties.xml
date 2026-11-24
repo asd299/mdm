@@ -1,0 +1,147 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 属性页：贴底面板（与「版本说明」同一套 PanelSheet 行为） -->
+<LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    android:id="@+id/propertiesSheet"
+    android:layout_width="match_parent"
+    android:layout_height="match_parent"
+    android:background="@drawable/bg_sheet_top"
+    android:clickable="true"
+    android:focusable="true"
+    android:orientation="vertical"
+    android:paddingBottom="8dp">
+
+    <!-- 顶部：抓手 + 标题，点一下在半屏与拉满之间切换 -->
+    <LinearLayout
+        android:id="@+id/propHeader"
+        android:layout_width="match_parent"
+        android:layout_height="wrap_content"
+        android:background="?attr/selectableItemBackground"
+        android:clickable="true"
+        android:focusable="true"
+        android:orientation="vertical">
+
+        <View
+            android:layout_width="36dp"
+            android:layout_height="5dp"
+            android:layout_gravity="center_horizontal"
+            android:layout_marginTop="8dp"
+            android:background="@drawable/bg_sheet_handle" />
+
+        <LinearLayout
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:gravity="center_vertical"
+            android:orientation="horizontal"
+            android:paddingStart="20dp"
+            android:paddingTop="14dp"
+            android:paddingEnd="14dp"
+            android:paddingBottom="8dp">
+
+            <LinearLayout
+                android:layout_width="0dp"
+                android:layout_height="wrap_content"
+                android:layout_weight="1"
+                android:orientation="vertical">
+
+                <TextView
+                    android:layout_width="wrap_content"
+                    android:layout_height="wrap_content"
+                    android:text="@string/properties_title"
+                    android:textColor="@color/ios_label"
+                    android:textSize="20sp"
+                    android:textStyle="bold" />
+
+                <TextView
+                    android:id="@+id/tvPropSubtitle"
+                    android:layout_width="match_parent"
+                    android:layout_height="wrap_content"
+                    android:layout_marginTop="3dp"
+                    android:ellipsize="middle"
+                    android:maxLines="2"
+                    android:textColor="@color/ios_label_2"
+                    android:textSize="12sp" />
+            </LinearLayout>
+
+            <TextView
+                android:id="@+id/btnPropClose"
+                android:layout_width="wrap_content"
+                android:layout_height="36dp"
+                android:background="@drawable/bg_ios_input"
+                android:gravity="center"
+                android:paddingStart="16dp"
+                android:paddingEnd="16dp"
+                android:text="@string/changelog_close"
+                android:textColor="@color/ios_blue"
+                android:textSize="13sp"
+                android:textStyle="bold" />
+        </LinearLayout>
+    </LinearLayout>
+
+    <ScrollView
+        android:id="@+id/propScroll"
+        android:layout_width="match_parent"
+        android:layout_height="0dp"
+        android:layout_weight="1"
+        android:clipToPadding="false"
+        android:overScrollMode="ifContentScrolls"
+        android:scrollbars="none">
+
+        <LinearLayout
+            android:id="@+id/propList"
+            android:layout_width="match_parent"
+            android:layout_height="wrap_content"
+            android:orientation="vertical"
+            android:paddingBottom="6dp" />
+    </ScrollView>
+
+    <View
+        android:layout_width="match_parent"
+        android:layout_height="1dp"
+        android:background="@color/ios_separator" />
+
+    <!-- 底部操作：分享 / 打开 / 关闭 -->
+    <LinearLayout
+        android:layout_width="match_parent"
+        android:layout_height="54dp"
+        android:orientation="horizontal"
+        android:paddingStart="10dp"
+        android:paddingEnd="10dp">
+
+        <TextView
+            android:id="@+id/btnPropShare"
+            style="@style/Widget.MDM.Button.Text"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center"
+            android:text="@string/share"
+            android:textColor="@color/ios_blue"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/btnPropOpen"
+            style="@style/Widget.MDM.Button.Text"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center"
+            android:text="@string/open"
+            android:textColor="@color/ios_blue"
+            android:textSize="16sp" />
+
+        <TextView
+            android:id="@+id/btnPropDismiss"
+            style="@style/Widget.MDM.Button.Text"
+            android:layout_width="0dp"
+            android:layout_height="match_parent"
+            android:layout_weight="1"
+            android:background="?attr/selectableItemBackground"
+            android:gravity="center"
+            android:text="@string/close"
+            android:textColor="@color/ios_blue"
+            android:textSize="16sp"
+            android:textStyle="bold" />
+    </LinearLayout>
+</LinearLayout>

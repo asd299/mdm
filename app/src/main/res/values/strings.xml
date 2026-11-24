@@ -9,6 +9,7 @@
     <string name="resume">继续</string>
     <string name="delete">删除</string>
     <string name="open">打开</string>
+    <string name="open_file">打开文件</string>
     <string name="retry">重试</string>
     <string name="status_waiting">等待中</string>
     <string name="status_downloading">下载中</string>
@@ -70,7 +71,7 @@
     <string name="saved_to_path">已保存到 %1$s</string>
     <string name="save_failed_short">已完成 · 未写入所选目录</string>
     <string name="save_failed_toast">「%1$s」未写入所选目录：%2$s\n可长按任务选择「重新保存到所选目录」</string>
-    <string name="save_retry">重新保存到所选目录</string>
+    <string name="save_retry">重新保存</string>
     <string name="save_retry_done">已保存到 %1$s</string>
     <string name="save_retry_failed">保存失败：%1$s</string>
     <string name="save_retry_no_file">临时文件已不存在，无法重新保存</string>
@@ -164,7 +165,7 @@
     <string name="prop_not_openable">文件尚未下载完成，无法打开</string>
     <string name="item_details">详细信息</string>
     <string name="copy_link">复制链接</string>
-    <string name="open_link">打开下载链接</string>
+    <string name="open_link">打开链接</string>
     <string name="detail_name">文件名</string>
     <string name="detail_size">大小</string>
     <string name="detail_status">状态</string>

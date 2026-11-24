@@ -317,6 +317,8 @@ class ScreenshotTest {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+                // 入场动画需要真实帧时钟，静态截图里会画成空白
+                rv.layoutAnimation = null
                 (rv.adapter as DownloadsAdapter).refresh()
                 rv.measure(
                     View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
@@ -365,7 +367,7 @@ class ScreenshotTest {
                 org.robolectric.shadows.ShadowLooper.idleMainLooper(600, java.util.concurrent.TimeUnit.MILLISECONDS)
                 val d = ShadowDialog.getLatestDialog() ?: return@onActivity
                 val screenH = a.resources.displayMetrics.heightPixels
-                val host = d.findViewById<View>(R.id.changelogSheetHost) ?: return@onActivity
+                val host = d.findViewById<View>(R.id.panelHost) ?: return@onActivity
 
                 fun stage(path: String) {
                     host.requestLayout()

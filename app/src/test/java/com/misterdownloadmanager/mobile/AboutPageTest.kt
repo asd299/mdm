@@ -87,7 +87,7 @@ class AboutPageTest {
                 ShadowLooper.idleMainLooper()
 
                 val dialog = ShadowDialog.getLatestDialog()!!
-                val host = dialog.findViewById<View>(R.id.changelogSheetHost)
+                val host = dialog.findViewById<View>(R.id.panelHost)
                 val sheet = dialog.findViewById<View>(R.id.changelogSheet)
                 assertNotNull("面板载体应存在", host)
                 assertNotNull("面板应存在", sheet)

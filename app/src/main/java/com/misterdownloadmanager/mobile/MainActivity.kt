@@ -71,8 +71,9 @@ class MainActivity : AppCompatActivity() {
     private lateinit var sortPanel: View
     private lateinit var sortOptions: LinearLayout
     private lateinit var tvSortOrder: TextView
-    private lateinit var itemPanel: View
-    private lateinit var itemPanelGrid: LinearLayout
+
+    /** 属性面板：与版本说明同一套贴底面板 */
+    private var propsSheet: PanelSheet? = null
 
     private var searchView: SearchView? = null
     private var searchItem: MenuItem? = null
@@ -88,8 +89,10 @@ class MainActivity : AppCompatActivity() {
     private var sortMode: SortMode = SortMode.TIME
     private var sortAscending = false
     private var sortPanelOpen = false
-    private var itemPanelOpen = false
-    private var itemPanelTaskId: String? = null
+
+    /** 是否已展开某项的操作面板（状态以适配器为准，面板插在该项正下方） */
+    private val itemPanelOpen: Boolean
+        get() = ::adapter.isInitialized && adapter.expandedId != null
 
     private val pickDir: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -211,6 +214,11 @@ class MainActivity : AppCompatActivity() {
             },
             onSelectionChanged = { updateSelectionUi() },
         )
+        // 操作面板是列表里的一行，插在对应项正下方
+        adapter.panelFactory = { parent ->
+            layoutInflater.inflate(R.layout.item_action_panel, parent, false)
+        }
+        adapter.panelBinder = { view, task -> bindItemPanel(view, task) }
         adapter.sortMode = sortMode
         adapter.sortAscending = sortAscending
         adapter.statusCat = statusCat
@@ -235,13 +243,10 @@ class MainActivity : AppCompatActivity() {
         attachSwipe()
         setupActionRow()
 
-        // 滚动列表时自动收起排序面板，避免长期占用屏幕
+        // 滚动列表时收起排序面板；操作面板贴在项下方，属于列表内容，滚动时保留
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
-                if (newState != RecyclerView.SCROLL_STATE_IDLE) {
-                    if (sortPanelOpen) collapseSortPanel()
-                    if (itemPanelOpen) collapseItemPanel()
-                }
+                if (newState != RecyclerView.SCROLL_STATE_IDLE && sortPanelOpen) collapseSortPanel()
             }
         })
 
@@ -680,9 +685,6 @@ class MainActivity : AppCompatActivity() {
         sortPanel = findViewById(R.id.sortPanel)
         sortOptions = findViewById(R.id.sortOptions)
         tvSortOrder = findViewById(R.id.tvSortOrder)
-        itemPanel = findViewById(R.id.itemPanel)
-        itemPanelGrid = findViewById(R.id.itemPanelGrid)
-        findViewById<View>(R.id.btnItemPanelClose).setOnClickListener { collapseItemPanel() }
 
         findViewById<View>(R.id.btnPauseAll).setOnClickListener { pauseAll() }
         findViewById<View>(R.id.btnResumeAll).setOnClickListener { resumeAll() }
@@ -1067,7 +1069,7 @@ class MainActivity : AppCompatActivity() {
                 }
             }
             Status.COMPLETED -> {
-                items.add(getString(R.string.open)); actions.add { openFile(task) }
+                items.add(getString(R.string.open_file)); actions.add { openFile(task) }
                 // 之前写入失败，或旧版本下载的文件还没有「保存位置」记录：允许重新落盘
                 val canResave = !task.saveError.isNullOrBlank() ||
                     (task.savedLocation.isBlank() && SaveStore.isCustom(this))
@@ -1098,23 +1100,44 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 列表项操作面板：就地展开（与「排序」同一种交互），不再弹对话框。
-     * 再点同一项会把面板收回去。
+     * 列表项操作面板：插在该项正下方（与「排序」同一种就地展开，不弹浮层）。
+     * 再点同一项收起；点别的项则换到那一项下面。
      */
     private fun showItemPanel(task: DownloadTask) {
         if (sortPanelOpen) collapseSortPanel()
-        if (itemPanelOpen && itemPanelTaskId == task.id) {
+        if (adapter.expandedId == task.id) {
             collapseItemPanel()
             return
         }
-        itemPanelTaskId = task.id
-        findViewById<TextView>(R.id.tvItemPanelTitle).text = task.fileName.ifBlank { task.url }
+        adapter.setExpanded(task.id)
+        scrollPanelIntoView(task.id)
+    }
 
+    /** 面板展开后如果被挤在屏幕下方，就轻轻滚上来一点，避免只露出半截 */
+    private fun scrollPanelIntoView(taskId: String) {
+        val pos = adapter.positionOf(taskId)
+        if (pos < 0) return
+        recycler.post {
+            val panelVh = recycler.findViewHolderForAdapterPosition(pos + 1) ?: return@post
+            val visibleBottom = recycler.height - recycler.paddingBottom
+            val overflow = panelVh.itemView.bottom - visibleBottom
+            if (overflow > 0) recycler.smoothScrollBy(0, overflow + dp(10))
+        }
+    }
+
+    private fun collapseItemPanel() {
+        adapter.setExpanded(null)
+    }
+
+    /** 填充面板内容：一行三个按钮，顺序与 [buildItemMenu] 一致 */
+    private fun bindItemPanel(panel: View, task: DownloadTask) {
+        val grid = panel.findViewById<LinearLayout>(R.id.itemActionGrid)
+        grid.removeAllViews()
         val (items, actions) = buildItemMenu(task, false)
-        itemPanelGrid.removeAllViews()
+
         var row: LinearLayout? = null
         items.forEachIndexed { index, label ->
-            if (index % 2 == 0) {
+            if (index % 3 == 0) {
                 row = LinearLayout(this).apply {
                     orientation = LinearLayout.HORIZONTAL
                     layoutParams = LinearLayout.LayoutParams(
@@ -1122,7 +1145,7 @@ class MainActivity : AppCompatActivity() {
                         LinearLayout.LayoutParams.WRAP_CONTENT,
                     ).apply { topMargin = if (index == 0) 0 else dp(6) }
                 }
-                itemPanelGrid.addView(row)
+                grid.addView(row)
             }
             val chip = layoutInflater.inflate(R.layout.item_action_chip, row, false)
             chip.findViewById<ImageView>(R.id.chipIcon).setImageResource(iconForAction(label))
@@ -1134,7 +1157,7 @@ class MainActivity : AppCompatActivity() {
             row?.addView(chip)
         }
         // 末行不足三个时补等宽占位，按钮不会一个撑满整行
-        repeat((2 - items.size % 2) % 2) {
+        repeat((3 - items.size % 3) % 3) {
             row?.addView(View(this).apply {
                 layoutParams = LinearLayout.LayoutParams(0, 1, 1f).apply {
                     marginStart = dp(3)
@@ -1142,25 +1165,13 @@ class MainActivity : AppCompatActivity() {
                 }
             })
         }
-
-        if (!itemPanelOpen) {
-            itemPanelOpen = true
-            animateSection(itemPanel, true)
-        }
-    }
-
-    private fun collapseItemPanel() {
-        if (!itemPanelOpen) return
-        itemPanelOpen = false
-        itemPanelTaskId = null
-        animateSection(itemPanel, false)
     }
 
     /** 操作项用哪个图标：按文案映射，文案变了这里也要跟着改 */
     private fun iconForAction(label: String): Int = when (label) {
         getString(R.string.pause) -> R.drawable.ic_pause
         getString(R.string.resume) -> R.drawable.ic_resume
-        getString(R.string.open) -> R.drawable.ic_file_open
+        getString(R.string.open), getString(R.string.open_file) -> R.drawable.ic_file_open
         getString(R.string.properties) -> R.drawable.ic_info
         getString(R.string.copy_link) -> R.drawable.ic_copy
         getString(R.string.open_link) -> R.drawable.ic_link
@@ -1185,11 +1196,17 @@ class MainActivity : AppCompatActivity() {
             Toast.makeText(this, R.string.crash_copy_failed, Toast.LENGTH_SHORT).show()
     }
 
-    /** 属性页：所有值点一下即复制，底部保留 分享 / 打开 / 关闭 */
+    /**
+     * 属性面板：与版本说明同一种贴底展开（默认半屏，点抓手 / 标题拉满）。
+     * 所有值点一下即复制，底部保留 分享 / 打开 / 关闭。
+     */
     private fun showProperties(task: DownloadTask) {
-        val view = layoutInflater.inflate(R.layout.dialog_properties, null)
+        if (propsSheet?.isShowing == true) return
+
+        val view = layoutInflater.inflate(R.layout.sheet_properties, null)
         val list = view.findViewById<LinearLayout>(R.id.propList)
-        view.findViewById<TextView>(R.id.tvPropSubtitle).text = getString(R.string.properties_hint)
+        view.findViewById<TextView>(R.id.tvPropSubtitle).text =
+            getString(R.string.properties_hint)
 
         val sizeText = if (task.totalBytes > 0)
             "${formatSize(task.totalBytes)}（${task.totalBytes} 字节）"
@@ -1221,31 +1238,25 @@ class MainActivity : AppCompatActivity() {
         addPropRow(list, getString(R.string.prop_finished), dateText(task.finishedAt))
         addPropRow(list, getString(R.string.prop_extra), extra ?: getString(R.string.prop_none))
 
-        val dialog = MaterialAlertDialogBuilder(this).setView(view).create()
+        val panel = PanelSheet(this, view)
+        panel.bindToggle(view.findViewById(R.id.propHeader))
+        panel.bindClose(view.findViewById(R.id.btnPropClose))
+        panel.bindClose(view.findViewById(R.id.btnPropDismiss))
         view.findViewById<View>(R.id.btnPropShare).setOnClickListener {
-            dialog.dismiss()
+            panel.dismiss()
             shareTask(task)
         }
         view.findViewById<View>(R.id.btnPropOpen).setOnClickListener {
-            dialog.dismiss()
-            if (task.status == Status.COMPLETED && openableUri(task) != null) openFile(task)
-            else Toast.makeText(this, R.string.prop_not_openable, Toast.LENGTH_SHORT).show()
-        }
-        view.findViewById<View>(R.id.btnPropClose).setOnClickListener { dialog.dismiss() }
-        dialog.setOnShowListener {
-            try {
-                val dm = resources.displayMetrics
-                val width = (dm.widthPixels * 0.92f).toInt()
-                view.measure(
-                    View.MeasureSpec.makeMeasureSpec(width, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                )
-                val height = view.measuredHeight.coerceAtMost((dm.heightPixels * 0.76f).toInt())
-                dialog.window?.setLayout(width, height)
-            } catch (_: Throwable) {
+            if (task.status == Status.COMPLETED && openableUri(task) != null) {
+                panel.dismiss()
+                openFile(task)
+            } else {
+                Toast.makeText(this, R.string.prop_not_openable, Toast.LENGTH_SHORT).show()
             }
         }
-        dialog.show()
+        panel.onDismiss = { propsSheet = null }
+        propsSheet = panel
+        panel.show()
     }
 
     /** 一行属性：点击整行复制右侧的值 */
@@ -1680,6 +1691,16 @@ class MainActivity : AppCompatActivity() {
         val sv = searchItem.actionView as? SearchView ?: return true
         searchView = sv
 
+        // 打开搜索框就收起展开的面板：搜索要占满列表区，面板留着只会被键盘挤住
+        searchItem.setOnActionExpandListener(object : MenuItem.OnActionExpandListener {
+            override fun onMenuItemActionExpand(item: MenuItem): Boolean {
+                collapsePanelsForSearch()
+                return true
+            }
+
+            override fun onMenuItemActionCollapse(item: MenuItem): Boolean = true
+        })
+
         sv.queryHint = getString(R.string.search_hint)
         val searchTint = ContextCompat.getColor(this, R.color.ios_label_2)
         sv.findViewById<ImageView>(androidx.appcompat.R.id.search_button)?.setColorFilter(searchTint)
@@ -1718,6 +1739,13 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = super.onOptionsItemSelected(item)
 
+    /** 搜索展开 / 进入二级页前，把列表内外的展开面板都收起来 */
+    private fun collapsePanelsForSearch() {
+        if (sortPanelOpen) collapseSortPanel()
+        if (itemPanelOpen) collapseItemPanel()
+        propsSheet?.dismiss()
+    }
+
     private fun clearSearch() {
         searchView?.let {
             if (!it.isIconified) {
@@ -1735,6 +1763,11 @@ class MainActivity : AppCompatActivity() {
             drawer.isDrawerOpen(GravityCompat.START) -> drawer.closeDrawer(GravityCompat.START)
             // 搜索展开时，返回键先退出搜索，而不是直接退出应用
             searchItem?.isActionViewExpanded == true -> collapseSearch()
+            // 有展开的面板先收面板，再考虑多选 / 退出
+            itemPanelOpen || sortPanelOpen -> {
+                if (sortPanelOpen) collapseSortPanel()
+                if (itemPanelOpen) collapseItemPanel()
+            }
             adapter.selectionMode -> adapter.clearSelection()
             else -> super.onBackPressed()
         }

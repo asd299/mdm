@@ -180,26 +180,56 @@ class PropertyDialogTest {
         }
     }
 
+    /** 属性面板：主界面 + 遮罩 + 贴底面板叠一张，确认半屏高度与排版 */
     @Test
     fun renderProperties() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 val task = sample(a.filesDir.absolutePath)
                 synchronized(Repo.tasks) { Repo.tasks.add(0, task) }
+                val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+                rv.layoutAnimation = null
+                (rv.adapter as DownloadsAdapter).refresh()
+
                 val d = openProps(a, task)!!
-                val decor = d.window!!.decorView as ViewGroup
-                val content = decor.findViewById<ViewGroup>(android.R.id.content)
-                val root = content.getChildAt(0)
-                root.measure(
-                    View.MeasureSpec.makeMeasureSpec(1012, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(0, View.MeasureSpec.UNSPECIFIED),
-                )
-                val h = root.measuredHeight
-                root.layout(0, 0, 1012, h)
-                val bmp = Bitmap.createBitmap(1012, h, Bitmap.Config.ARGB_8888)
-                root.draw(Canvas(bmp))
-                File("/tmp/shot_props.png").outputStream()
-                    .use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                val screenH = a.resources.displayMetrics.heightPixels
+                val host = d.findViewById<View>(R.id.panelHost)!!
+
+                fun stage(path: String) {
+                    host.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
+                    )
+                    host.layout(0, 0, 1080, screenH)
+
+                    val bmp = Bitmap.createBitmap(1080, screenH, Bitmap.Config.ARGB_8888)
+                    val canvas = Canvas(bmp)
+                    a.window.decorView.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
+                    )
+                    a.window.decorView.layout(0, 0, 1080, screenH)
+                    a.window.decorView.draw(canvas)
+                    // 窗口遮罩不画在 decor 里，这里补一层，接近真机观感
+                    canvas.drawColor(android.graphics.Color.argb(89, 0, 0, 0))
+                    d.window!!.decorView.measure(
+                        View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                        View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),
+                    )
+                    d.window!!.decorView.layout(0, 0, 1080, screenH)
+                    d.window!!.decorView.draw(canvas)
+                    File(path).outputStream().use { bmp.compress(Bitmap.CompressFormat.PNG, 100, it) }
+                }
+
+                stage("/tmp/shot_props_pre.png")
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(600, java.util.concurrent.TimeUnit.MILLISECONDS)
+                stage("/tmp/shot_props.png")
+
+                // 点抓手拉满再出一张，确认高度切换
+                d.findViewById<View>(R.id.propHeader)?.performClick()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper(400, java.util.concurrent.TimeUnit.MILLISECONDS)
+                stage("/tmp/shot_props_full.png")
+                d.dismiss()
             }
         }
     }

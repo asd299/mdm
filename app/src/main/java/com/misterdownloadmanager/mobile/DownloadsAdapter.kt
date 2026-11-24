@@ -29,13 +29,29 @@ class DownloadsAdapter(
     private val onItemClick: (DownloadTask) -> Unit = {},
     private val onItemLongClick: (DownloadTask) -> Boolean = { false },
     private val onSelectionChanged: () -> Unit = {},
-) : RecyclerView.Adapter<DownloadsAdapter.VH>() {
+) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
 
     companion object {
         private const val PAYLOAD_PROGRESS = 1
+        private const val TYPE_TASK = 0
+        private const val TYPE_PANEL = 1
     }
 
     private val items: MutableList<DownloadTask> = mutableListOf()
+
+    /**
+     * 展开在列表项正下方的操作面板：同一时间只展开一项，值为该项 id。
+     * 面板是 RecyclerView 的一行（不是浮层），所以滚动、下拉刷新时自然跟着走。
+     */
+    var expandedId: String? = null
+        private set
+
+    /** 面板视图由宿主创建 / 绑定：内容与业务动作都在 Activity 侧 */
+    var panelFactory: ((ViewGroup) -> View)? = null
+    var panelBinder: ((View, DownloadTask) -> Unit)? = null
+
+    /** 展开项被筛掉或删除时通知宿主，避免 Activity 侧状态残留 */
+    var onPanelClosed: (() -> Unit)? = null
 
     /**
      * 上一次真正绘制到界面上的内容快照。
@@ -131,6 +147,13 @@ class DownloadsAdapter(
         }
         val sorted = if (sortAscending) base else base.reversed()
 
+        // 展开项被筛掉（搜索 / 切分类 / 删除）时一并收起面板
+        var panelDropped = false
+        if (expandedId != null && sorted.none { it.id == expandedId }) {
+            expandedId = null
+            panelDropped = true
+        }
+
         val alive = snapshot.mapTo(HashSet()) { it.id }
         selectedIds.retainAll(alive)
         if (anchorId != null && !selectedIds.contains(anchorId!!)) anchorId = selectedIds.firstOrNull()
@@ -167,9 +190,10 @@ class DownloadsAdapter(
         sorted.forEach { lastStates[it.id] = stateOf(it) }
         lastStates.keys.retainAll(alive)
 
-        if (selectionChanged) {
+        if (selectionChanged || panelDropped) {
             notifyDataSetChanged()
-            onSelectionChanged()
+            if (selectionChanged) onSelectionChanged()
+            if (panelDropped) onPanelClosed?.invoke()
         } else {
             diff.dispatchUpdatesTo(this)
         }
@@ -185,10 +209,51 @@ class DownloadsAdapter(
 
     fun filteredTasks(): List<DownloadTask> = items.toList()
 
-    fun taskAt(position: Int): DownloadTask? = items.getOrNull(position)
+    /** 面板行所在的 adapter 位置；没有展开项时返回 -1 */
+    private fun panelIndex(): Int {
+        val id = expandedId ?: return -1
+        val i = items.indexOfFirst { it.id == id }
+        return if (i < 0) -1 else i + 1
+    }
 
-    /** 按 id 找当前列表里的位置（滑动后重绑用，位置可能已变化） */
-    fun positionOf(id: String): Int = items.indexOfFirst { it.id == id }
+    /** adapter 位置 → 任务下标；面板行返回 -1 */
+    private fun itemIndexAt(position: Int): Int {
+        val p = panelIndex()
+        if (p < 0) return position
+        return when {
+            position < p -> position
+            position == p -> -1
+            else -> position - 1
+        }
+    }
+
+    fun taskAt(position: Int): DownloadTask? = items.getOrNull(itemIndexAt(position))
+
+    /** 按 id 找当前列表里的位置（含面板行偏移，滑动后重绑用，位置可能已变化） */
+    fun positionOf(id: String): Int {
+        val i = items.indexOfFirst { it.id == id }
+        if (i < 0) return -1
+        val p = panelIndex()
+        return if (p in 0..i) i + 1 else i
+    }
+
+    /**
+     * 展开 / 收起操作面板。
+     *
+     * 换项时直接整表刷新：面板行要在旧位置消失、在新位置出现，
+     * 两次增删通知在同一帧里容易打架，不如一次重建干净。
+     */
+    fun setExpanded(id: String?) {
+        if (expandedId == id) return
+        val old = panelIndex()
+        val target = id?.let { wanted -> items.indexOfFirst { it.id == wanted } } ?: -1
+        expandedId = if (target >= 0) id else null
+        when {
+            expandedId == null && old >= 0 -> notifyItemRemoved(old)
+            old < 0 && expandedId != null -> notifyItemInserted(target + 1)
+            else -> notifyDataSetChanged()
+        }
+    }
 
     // ---------- 多选 ----------
 
@@ -255,6 +320,9 @@ class DownloadsAdapter(
 
     // ---------- 视图 ----------
 
+    /** 操作面板行：内容整体交给宿主填充 */
+    inner class PanelVH(view: View) : RecyclerView.ViewHolder(view)
+
     inner class VH(v: View) : RecyclerView.ViewHolder(v) {
         val card: MaterialCardView = v as MaterialCardView
         val iconBox: View = v.findViewById(R.id.iconBox)
@@ -311,13 +379,35 @@ class DownloadsAdapter(
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
-        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_download, parent, false))
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
+        if (viewType == TYPE_PANEL) {
+            val factory = panelFactory
+            PanelVH(
+                factory?.invoke(parent)
+                    ?: LayoutInflater.from(parent.context)
+                        .inflate(R.layout.item_action_panel, parent, false)
+            )
+        } else {
+            VH(LayoutInflater.from(parent.context).inflate(R.layout.item_download, parent, false))
+        }
 
-    override fun getItemCount(): Int = items.size
+    override fun getItemViewType(position: Int): Int =
+        if (position == panelIndex()) TYPE_PANEL else TYPE_TASK
 
-    override fun onBindViewHolder(holder: VH, position: Int) {
-        val t = items[position]
+    override fun getItemCount(): Int = items.size + if (expandedId != null) 1 else 0
+
+    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
+        if (holder is PanelVH) {
+            // 面板行自身没有任务，绑的是紧挨着它上方的那一项（即展开项）
+            val t = items.firstOrNull { it.id == expandedId } ?: return
+            panelBinder?.invoke(holder.itemView, t)
+            return
+        }
+        bindRow(holder as VH, position)
+    }
+
+    private fun bindRow(holder: VH, position: Int) {
+        val t = items[itemIndexAt(position)]
         bindHeader(holder, t)
         resetViewState(holder)
         if (holder.itemView.scaleX != 1f) {
@@ -350,15 +440,20 @@ class DownloadsAdapter(
         holder.bound = t
     }
 
-    override fun onBindViewHolder(holder: VH, position: Int, payloads: MutableList<Any>) {
-        if (payloads.isEmpty()) {
+    override fun onBindViewHolder(
+        holder: RecyclerView.ViewHolder,
+        position: Int,
+        payloads: MutableList<Any>,
+    ) {
+        if (holder is PanelVH || payloads.isEmpty()) {
             onBindViewHolder(holder, position)
             return
         }
-        val t = items[position]
-        bindHeader(holder, t)
-        resetViewState(holder)
-        bindProgress(holder, t)
+        val vh = holder as VH
+        val t = items[itemIndexAt(position)]
+        bindHeader(vh, t)
+        resetViewState(vh)
+        bindProgress(vh, t)
     }
 
     /** 清掉滑动后残留的位移，避免这一行停在屏幕外（看似消失） */

@@ -158,7 +158,7 @@ class ConflictAndNamingTest {
                 ShadowLooper.idleMainLooper()
 
                 val parent = FrameLayout(a)
-                val vh = ad.onCreateViewHolder(parent, 0)
+                val vh = ad.onCreateViewHolder(parent, 0) as DownloadsAdapter.VH
                 ad.onBindViewHolder(vh, 0)
                 assertEquals(a.getString(R.string.status_waiting), vh.name.text.toString())
 
