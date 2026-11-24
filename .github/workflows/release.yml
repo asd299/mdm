@@ -103,6 +103,8 @@ jobs:
           name: Mister 下载管理器 ${{ env.RELEASE_TAG }}
           tag_name: ${{ env.RELEASE_TAG }}
           files: ${{ env.APK }}
+          # 标签移动后重跑时，同名资产要覆盖，否则会保留旧包
+          overwrite_files: true
           generate_release_notes: true
           body: |
             ## 下载
