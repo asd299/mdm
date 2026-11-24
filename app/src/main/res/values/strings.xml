@@ -42,7 +42,15 @@
     <string name="cancel">取消</string>
     <string name="resume_yes">链接（断点续传：是）</string>
     <string name="resume_no">链接（断点续传：否，将单线程下载）</string>
-    <string name="no_wifi">已开启「仅限 Wi-Fi」，当前不在 Wi-Fi 环境，无法开始下载</string>
+
+    <string name="status_waiting_wifi">等待 Wi-Fi</string>
+    <string name="notif_waiting_wifi">%1$d 个任务等待 Wi-Fi</string>
+    <string name="wifi_wait_title">仅限 Wi-Fi 下载</string>
+    <string name="wifi_wait_message">当前未连接 Wi-Fi。现在继续会使用移动网络流量；也可以保持等待，连接 Wi-Fi 后自动开始。</string>
+    <string name="wifi_continue_anyway">仍然继续</string>
+    <string name="wifi_keep_waiting">继续等待</string>
+    <string name="add_waiting_wifi">已加入，连接 Wi-Fi 后自动开始</string>
+    <string name="batch_waiting_wifi">%1$d 个任务已在等待 Wi-Fi，连接后自动开始</string>
     <string name="settings">设置</string>
     <string name="pause_all">全部暂停</string>
     <string name="resume_all">全部继续</string>

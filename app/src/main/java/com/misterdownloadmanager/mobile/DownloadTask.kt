@@ -6,7 +6,15 @@ import org.json.JSONObject
 import java.io.File
 
 /** 任务状态 */
-enum class Status { QUEUED, DOWNLOADING, PAUSED, COMPLETED, FAILED }
+enum class Status {
+    QUEUED,
+    /** 已开启「仅限 Wi-Fi」，当前不在 Wi-Fi：任务挂起，连上 Wi-Fi 自动开始 */
+    WAITING_WIFI,
+    DOWNLOADING,
+    PAUSED,
+    COMPLETED,
+    FAILED,
+}
 
 /** 一个下载分段（Range 区间） */
 class Segment(val index: Int, var start: Long, var end: Long, var downloaded: Long) {
@@ -53,6 +61,11 @@ class DownloadTask(
      * 为空表示仍在应用私有目录里下载（自选保存目录、或 Android 9 及以下无写权限）。
      */
     var publicTarget: String? = null,
+    /**
+     * 用户在「仅限 Wi-Fi」下明确选择「仍然继续」：本次会话内不再因移动网络被挂起。
+     * 手动暂停 / 任务结束后清除。
+     */
+    var ignoreWifi: Boolean = false,
 ) {
     val downloadedBytes: Long get() = if (segments.isEmpty()) 0 else segments.sumOf { it.downloaded }
 
@@ -81,6 +94,7 @@ class DownloadTask(
         .put("saveError", saveError ?: "")
         .put("manualName", manualName)
         .put("publicTarget", publicTarget ?: "")
+        .put("ignoreWifi", ignoreWifi)
         .put("segments", JSONArray().apply { segments.forEach { put(it.toJson()) } })
 
     companion object {
@@ -107,6 +121,7 @@ class DownloadTask(
                 saveError = o.optString("saveError", "").ifEmpty { null },
                 manualName = o.optBoolean("manualName", false),
                 publicTarget = o.optString("publicTarget", "").ifEmpty { null },
+                ignoreWifi = o.optBoolean("ignoreWifi", false),
             )
         }
     }

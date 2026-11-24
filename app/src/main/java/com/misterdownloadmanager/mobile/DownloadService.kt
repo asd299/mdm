@@ -6,6 +6,11 @@ import android.app.NotificationManager
 import android.app.PendingIntent
 import android.app.Service
 import android.content.Intent
+import android.net.ConnectivityManager
+import android.net.Network
+import android.net.NetworkCapabilities
+import android.os.Handler
+import android.os.Looper
 import android.content.pm.ServiceInfo
 import android.os.Build
 import android.os.IBinder
@@ -36,6 +41,8 @@ class DownloadService : Service() {
         const val ACTION_DELETE = "com.misterdownloadmanager.mobile.DELETE"
         const val ACTION_PAUSE_ALL = "com.misterdownloadmanager.mobile.PAUSE_ALL"
         const val ACTION_RESUME_ALL = "com.misterdownloadmanager.mobile.RESUME_ALL"
+        /** 设置里切换了「仅限 Wi-Fi」或网络状态变化：重新评估等待中的任务 */
+        const val ACTION_RECHECK_WIFI = "com.misterdownloadmanager.mobile.RECHECK_WIFI"
         const val EXTRA_URL = "url"
         const val EXTRA_ID = "id"
         const val EXTRA_DELETE_FILE = "deleteFile"
@@ -43,6 +50,8 @@ class DownloadService : Service() {
         const val EXTRA_START = "start"
         const val EXTRA_MANUAL = "manual"
         const val EXTRA_ALLOW_DUP = "allowDup"
+        /** 用户确认「仍然继续」：本次忽略仅限 Wi-Fi 限制 */
+        const val EXTRA_FORCE = "force"
 
         fun intent(context: android.content.Context, action: String, extra: Pair<String, String>? = null): Intent {
             val i = Intent(context, DownloadService::class.java).setAction(action)
@@ -61,6 +70,8 @@ class DownloadService : Service() {
     private lateinit var scope: CoroutineScope
     private lateinit var engine: DownloadEngine
     private var ticker: Job? = null
+    private val mainHandler = Handler(Looper.getMainLooper())
+    private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
     override fun onCreate() {
         super.onCreate()
@@ -68,6 +79,9 @@ class DownloadService : Service() {
         scope = CoroutineScope(SupervisorJob() + Dispatchers.IO)
         engine = DownloadEngine(this, scope)
         createChannel()
+        watchNetwork()
+        // 服务（重新）启动时可能已有等待中的任务，网络恰好已恢复
+        mainHandler.post { evaluateWifi() }
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
@@ -82,18 +96,40 @@ class DownloadService : Service() {
                     intent.getBooleanExtra(EXTRA_ALLOW_DUP, false),
                 )
             }
-            ACTION_PAUSE -> intent.getStringExtra(EXTRA_ID)?.let { engine.pause(it) }
-            ACTION_RESUME -> intent.getStringExtra(EXTRA_ID)?.let { id ->
-                Repo.find(id)?.let { t -> if (t.status != Status.COMPLETED) engine.start(t) { onIdleCheck() } }
+            ACTION_PAUSE -> intent.getStringExtra(EXTRA_ID)?.let { id ->
+                // 手动暂停 = 取消「仍然继续」的豁免，下次继续时重新按策略判断
+                Repo.find(id)?.let { t ->
+                    t.ignoreWifi = false
+                    if (t.status == Status.WAITING_WIFI) {
+                        t.status = Status.PAUSED
+                        Repo.save(this)
+                    }
+                }
+                engine.pause(id)
             }
+            ACTION_RESUME -> intent.getStringExtra(EXTRA_ID)?.let { id ->
+                Repo.find(id)?.let { t ->
+                    startTask(t, force = intent.getBooleanExtra(EXTRA_FORCE, false))
+                }
+            }
+            ACTION_RECHECK_WIFI -> evaluateWifi()
             ACTION_PAUSE_ALL -> {
                 engine.pauseAll()
-                synchronized(Repo.tasks) { Repo.tasks.forEach { if (it.status == Status.QUEUED) it.status = Status.PAUSED } }
+                synchronized(Repo.tasks) {
+                    Repo.tasks.forEach {
+                        if (it.status == Status.QUEUED || it.status == Status.WAITING_WIFI) {
+                            it.status = Status.PAUSED
+                            it.ignoreWifi = false
+                        }
+                    }
+                }
                 Repo.save(this)
             }
             ACTION_RESUME_ALL -> synchronized(Repo.tasks) {
-                Repo.tasks.filter { it.status == Status.PAUSED || it.status == Status.FAILED || it.status == Status.QUEUED }
-                    .forEach { t -> engine.start(t) { onIdleCheck() } }
+                Repo.tasks.filter {
+                    it.status == Status.PAUSED || it.status == Status.FAILED ||
+                        it.status == Status.QUEUED || it.status == Status.WAITING_WIFI
+                }.forEach { t -> startTask(t) }
             }
             ACTION_DELETE -> intent.getStringExtra(EXTRA_ID)?.let { id ->
                 Repo.find(id)?.let { t ->
@@ -137,11 +173,80 @@ class DownloadService : Service() {
             manualName = manualName && trimmed.isNotEmpty(),
         )
         Repo.add(this, task)
-        if (startNow) engine.start(task) { onIdleCheck() }
+        if (startNow) startTask(task)
+    }
+
+    /**
+     * 统一的启动入口：先过「仅限 Wi-Fi」策略。
+     * 不满足条件时任务停在 [Status.WAITING_WIFI]，连上 Wi-Fi 后由网络回调自动续跑。
+     */
+    private fun startTask(task: DownloadTask, force: Boolean = false) {
+        if (task.status == Status.COMPLETED) return
+        if (force) task.ignoreWifi = true
+        if (WifiPolicy.shouldWait(this, task)) {
+            task.status = Status.WAITING_WIFI
+            task.error = null
+            Repo.save(this)
+            onIdleCheck()
+            return
+        }
+        engine.start(task) { onIdleCheck() }
+    }
+
+    /** 网络 / 开关变化后重新分配：该等的挂起，能跑的续跑 */
+    private fun evaluateWifi() {
+        val wifiOnly = WifiPolicy.wifiOnly(this)
+        val onWifi = WifiPolicy.onWifi(this)
+        if (wifiOnly && !onWifi) {
+            // 只挂起真正在跑的；QUEUED 是「加入队列但没开始」，不该被 Wi-Fi 策略带走
+            val running = synchronized(Repo.tasks) {
+                Repo.tasks.filter { it.status == Status.DOWNLOADING }.toList()
+            }
+            running.filter { !it.ignoreWifi }.forEach { task ->
+                engine.pause(task.id)
+                synchronized(Repo.tasks) {
+                    Repo.find(task.id)?.let { if (it.status == Status.PAUSED) it.status = Status.WAITING_WIFI }
+                }
+                Repo.save(this)
+            }
+        } else {
+            val waiting = synchronized(Repo.tasks) {
+                Repo.tasks.filter { it.status == Status.WAITING_WIFI }.toList()
+            }
+            waiting.forEach { startTask(it) }
+        }
+        onIdleCheck()
+    }
+
+    /** 监听默认网络：Wi-Fi 恢复 / 断开都重新评估一次 */
+    private fun watchNetwork() {
+        val cm = getSystemService(CONNECTIVITY_SERVICE) as? ConnectivityManager ?: return
+        val callback = object : ConnectivityManager.NetworkCallback() {
+            override fun onAvailable(network: Network) {
+                mainHandler.post { evaluateWifi() }
+            }
+
+            override fun onLost(network: Network) {
+                // 切换网络的瞬间 activeNetwork 可能还是旧值，稍等再判断
+                mainHandler.postDelayed({ evaluateWifi() }, 600)
+            }
+
+            override fun onCapabilitiesChanged(network: Network, caps: NetworkCapabilities) {
+                mainHandler.post { evaluateWifi() }
+            }
+        }
+        try {
+            cm.registerDefaultNetworkCallback(callback)
+            networkCallback = callback
+        } catch (_: Exception) {
+        }
     }
 
     private fun onIdleCheck() {
-        val running = Repo.tasks.any { it.status == Status.DOWNLOADING || it.status == Status.QUEUED }
+        // 等待 Wi-Fi 的任务也要让服务活着：否则网络恢复时没人把它们叫起来
+        val running = Repo.tasks.any {
+            it.status == Status.DOWNLOADING || it.status == Status.QUEUED || it.status == Status.WAITING_WIFI
+        }
         if (!running) {
             stopForeground(STOP_FOREGROUND_REMOVE)
             stopSelf()
@@ -178,6 +283,7 @@ class DownloadService : Service() {
 
     private fun buildNotification(): Notification {
         val downloading = Repo.tasks.filter { it.status == Status.DOWNLOADING }
+        val waitingWifi = Repo.tasks.count { it.status == Status.WAITING_WIFI }
         val known = downloading.filter { it.totalBytes > 0 }
         val done = downloading.sumOf { it.downloadedBytes }
         val total = downloading.sumOf { if (it.totalBytes > 0) it.totalBytes else 0 }
@@ -189,8 +295,11 @@ class DownloadService : Service() {
             .setSmallIcon(R.drawable.ic_download)
             .setContentTitle(getString(R.string.notif_title))
             .setContentText(
-                if (downloading.isEmpty()) getString(R.string.all_paused)
-                else downloading.joinToString("、") { it.fileName }
+                when {
+                    downloading.isNotEmpty() -> downloading.joinToString("、") { it.fileName }
+                    waitingWifi > 0 -> getString(R.string.notif_waiting_wifi, waitingWifi)
+                    else -> getString(R.string.all_paused)
+                }
             )
             .setProgress(100, if (total > 0) (done * 100 / total).toInt() else 0, downloading.isNotEmpty() && known.isEmpty())
             .setOngoing(true)
@@ -207,6 +316,13 @@ class DownloadService : Service() {
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        networkCallback?.let {
+            try {
+                (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(it)
+            } catch (_: Exception) {
+            }
+        }
+        networkCallback = null
         engine.pauseAll()
         scope.cancel()
         Repo.save(this)

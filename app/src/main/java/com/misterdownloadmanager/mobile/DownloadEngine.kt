@@ -82,7 +82,9 @@ class DownloadEngine(private val context: Context, private val scope: CoroutineS
             try {
                 runTask(task)
             } catch (e: CancellationException) {
-                task.status = Status.PAUSED
+                // 取消可能来自「切到移动网络，任务转入等待 Wi-Fi」：
+                // 这种挂起有明确状态，不能被这里改回「已暂停」
+                if (task.status != Status.WAITING_WIFI) task.status = Status.PAUSED
                 Repo.save(context)
             } catch (e: Exception) {
                 task.status = Status.FAILED

@@ -37,6 +37,7 @@ import android.widget.Toast
 import androidx.activity.result.ActivityResultLauncher
 import androidx.activity.result.contract.ActivityResultContracts
 import androidx.appcompat.app.AppCompatActivity
+import androidx.appcompat.content.res.AppCompatResources
 import androidx.appcompat.widget.SearchView
 import androidx.core.content.ContextCompat
 import androidx.core.content.FileProvider
@@ -46,7 +47,6 @@ import androidx.core.view.WindowInsetsCompat
 import androidx.recyclerview.widget.ItemTouchHelper
 import androidx.recyclerview.widget.LinearLayoutManager
 import androidx.recyclerview.widget.RecyclerView
-import androidx.swiperefreshlayout.widget.SwipeRefreshLayout
 import com.google.android.material.appbar.MaterialToolbar
 import com.google.android.material.dialog.MaterialAlertDialogBuilder
 import com.google.android.material.floatingactionbutton.FloatingActionButton
@@ -66,7 +66,7 @@ class MainActivity : AppCompatActivity() {
     private lateinit var fab: FloatingActionButton
     private lateinit var selectionBar: View
     private lateinit var recycler: RecyclerView
-    private lateinit var swipeRefresh: SwipeRefreshLayout
+    private lateinit var swipeRefresh: SafeSwipeRefreshLayout
     private lateinit var largeTitle: TextView
     private lateinit var actionRow: View
     private lateinit var sortPanel: View
@@ -233,7 +233,8 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh.setColorSchemeColors(ContextCompat.getColor(this, R.color.ios_blue))
         swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.ios_card))
         swipeRefresh.setDistanceToTriggerSync(dp(72))
-        swipeRefresh.setOnChildScrollUpCallback { _, _ -> recycler.canScrollVertically(-1) }
+        // 由控件自己判断「是否已滚到顶」，它还要在这个判断里加上手势闸门
+        swipeRefresh.canScrollUp = { recycler.canScrollVertically(-1) }
         swipeRefresh.setOnRefreshListener {
             // 多选状态下松手不应刷新：长按进入多选时手指可能已经把刷新拉出一半，
             // 这里兜底收起指示器，避免「长按之后过一会儿列表自己刷新」
@@ -621,7 +622,11 @@ class MainActivity : AppCompatActivity() {
         val swRetry = findViewById<MaterialSwitch>(R.id.swRetry)
         swWifi.isChecked = prefs().getBoolean("wifi_only", false)
         swRetry.isChecked = prefs().getBoolean("auto_retry", true)
-        swWifi.setOnCheckedChangeListener { _, c -> prefs().edit().putBoolean("wifi_only", c).apply() }
+        swWifi.setOnCheckedChangeListener { _, c ->
+            prefs().edit().putBoolean(WifiPolicy.KEY_WIFI_ONLY, c).apply()
+            // 关掉开关立刻续跑等待中的任务；打开开关则把正在跑的任务挂起
+            startService(DownloadService.intent(this, DownloadService.ACTION_RECHECK_WIFI))
+        }
         swRetry.setOnCheckedChangeListener { _, c -> prefs().edit().putBoolean("auto_retry", c).apply() }
         // 整行可点：iOS 设置里点文字也能切换
         findViewById<View>(R.id.rowWifi).setOnClickListener { swWifi.toggle() }
@@ -1042,31 +1047,95 @@ class MainActivity : AppCompatActivity() {
         when (task.status) {
             Status.DOWNLOADING, Status.QUEUED ->
                 startService(DownloadService.intent(this, DownloadService.ACTION_PAUSE, DownloadService.EXTRA_ID to task.id))
+            Status.WAITING_WIFI -> promptContinueOnMobile(task)
             Status.PAUSED, Status.FAILED ->
-                startService(DownloadService.intent(this, DownloadService.ACTION_RESUME, DownloadService.EXTRA_ID to task.id))
+                if (WifiPolicy.shouldWait(this, task)) promptContinueOnMobile(task) else resumeTask(task)
             else -> Unit
         }
     }
 
-    /** 删除确认里那个「删除源文件」勾选框，默认勾上；取消勾选后只移除任务记录 */
-    private fun deleteFileCheckBox(): CheckBox {
-        // setView 的容器本身没有左右内边距，直接塞 CheckBox 会紧贴对话框边缘；
-        // 这里补上与标题 / 正文一致的 24dp 缩进，勾选框不再顶着边框
-        val padH = (24 * resources.displayMetrics.density).toInt()
-        return com.google.android.material.checkbox.MaterialCheckBox(this).apply {
-            id = R.id.checkDeleteFile
-            text = getString(R.string.delete_with_file)
-            isChecked = true
-            setPadding(padH, 0, padH, 0)
+    private fun resumeTask(task: DownloadTask, force: Boolean = false) {
+        val intent = DownloadService.intent(this, DownloadService.ACTION_RESUME, DownloadService.EXTRA_ID to task.id)
+        if (force) intent.putExtra(DownloadService.EXTRA_FORCE, true)
+        startService(intent)
+    }
+
+    /**
+     * 「仅限 Wi-Fi」下点了继续：说清楚现在会走移动网络，由用户决定。
+     * 直接继续而不提示，会让「我明明开了仅限 Wi-Fi」变成一句空话。
+     */
+    private fun promptContinueOnMobile(task: DownloadTask) {
+        MaterialAlertDialogBuilder(this)
+            .setTitle(R.string.wifi_wait_title)
+            .setMessage(R.string.wifi_wait_message)
+            .setPositiveButton(R.string.wifi_continue_anyway) { _, _ -> resumeTask(task, force = true) }
+            .setNegativeButton(R.string.wifi_keep_waiting, null)
+            .show()
+    }
+
+    /**
+     * 删除确认里的「删除源文件」行，默认勾上；取消勾选后只移除任务记录。
+     *
+     * 系统的 CheckBox 会按 Material 的 40dp 触摸区给图标留槽位，文字被推得很远，
+     * 即使补了左右 padding 也还是「图标贴边、文字飞走」。这里自己排一行：
+     * 22dp 图标 + 10dp 间距 + 文字，整行与标题同为 24dp 缩进，点哪都能切换。
+     */
+    private fun buildDeleteConfirmView(): View {
+        val d = resources.displayMetrics.density
+        val padH = (24 * d).toInt()
+
+        val row = LinearLayout(this).apply {
+            orientation = LinearLayout.HORIZONTAL
+            gravity = Gravity.CENTER_VERTICAL
+            setPadding(padH, (4 * d).toInt(), padH, (4 * d).toInt())
+            minimumHeight = (48 * d).toInt()
+            isClickable = true
+            isFocusable = true
+            val tv = android.util.TypedValue()
+            if (theme.resolveAttribute(android.R.attr.selectableItemBackground, tv, true)) {
+                setBackgroundResource(tv.resourceId)
+            }
         }
+
+        val box = CheckBox(this).apply {
+            id = R.id.checkDeleteFile
+            isChecked = true
+            text = null
+            buttonDrawable = AppCompatResources.getDrawable(context, R.drawable.checkbox_mdm)
+            buttonTintList = null
+            minWidth = 0
+            minimumWidth = 0
+            minHeight = 0
+            minimumHeight = 0
+            setPadding(0, 0, 0, 0)
+            contentDescription = getString(R.string.delete_with_file)
+        }
+
+        val label = TextView(this).apply {
+            text = getString(R.string.delete_with_file)
+            textSize = 14f
+            setTextColor(ContextCompat.getColor(context, R.color.ios_label))
+        }
+
+        row.addView(box, LinearLayout.LayoutParams((22 * d).toInt(), (22 * d).toInt()))
+        row.addView(
+            label,
+            LinearLayout.LayoutParams(
+                LinearLayout.LayoutParams.WRAP_CONTENT,
+                LinearLayout.LayoutParams.WRAP_CONTENT
+            ).apply { marginStart = (10 * d).toInt() }
+        )
+        row.setOnClickListener { box.toggle() }
+        return row
     }
 
     private fun confirmDelete(task: DownloadTask) {
-        val check = deleteFileCheckBox()
+        val body = buildDeleteConfirmView()
+        val check = body.findViewById<CheckBox>(R.id.checkDeleteFile)
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.delete))
             .setMessage(getString(R.string.delete_confirm, task.fileName.ifBlank { task.url }))
-            .setView(check)
+            .setView(body)
             .setPositiveButton(R.string.delete) { _, _ ->
                 startService(DownloadService.deleteIntent(this, task.id, check.isChecked))
             }
@@ -1171,6 +1240,7 @@ class MainActivity : AppCompatActivity() {
     private fun statusText(s: Status): String = getString(
         when (s) {
             Status.QUEUED -> R.string.queued_status
+            Status.WAITING_WIFI -> R.string.status_waiting_wifi
             Status.DOWNLOADING -> R.string.status_downloading
             Status.PAUSED -> R.string.status_paused
             Status.COMPLETED -> R.string.status_completed
@@ -1268,7 +1338,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun batchPause() {
         val targets = adapter.selectedTasks().filter {
-            it.status == Status.DOWNLOADING || it.status == Status.QUEUED
+            it.status == Status.DOWNLOADING || it.status == Status.QUEUED ||
+                it.status == Status.WAITING_WIFI
         }
         if (targets.isEmpty()) {
             Toast.makeText(this, R.string.batch_none, Toast.LENGTH_SHORT).show()
@@ -1283,7 +1354,8 @@ class MainActivity : AppCompatActivity() {
 
     private fun batchResume() {
         val targets = adapter.selectedTasks().filter {
-            it.status == Status.PAUSED || it.status == Status.FAILED || it.status == Status.QUEUED
+            it.status == Status.PAUSED || it.status == Status.FAILED ||
+                it.status == Status.QUEUED || it.status == Status.WAITING_WIFI
         }
         if (targets.isEmpty()) {
             Toast.makeText(this, R.string.batch_none, Toast.LENGTH_SHORT).show()
@@ -1292,18 +1364,26 @@ class MainActivity : AppCompatActivity() {
         targets.forEach {
             startService(DownloadService.intent(this, DownloadService.ACTION_RESUME, DownloadService.EXTRA_ID to it.id))
         }
-        Toast.makeText(this, getString(R.string.batch_resumed, targets.size), Toast.LENGTH_SHORT).show()
+        // 仅限 Wi-Fi 又不在 Wi-Fi：批量恢复只会把它们放回等待队列，得说清楚
+        val waiting = WifiPolicy.wifiOnly(this) && !WifiPolicy.onWifi(this)
+        Toast.makeText(
+            this,
+            if (waiting) getString(R.string.batch_waiting_wifi, targets.size)
+            else getString(R.string.batch_resumed, targets.size),
+            Toast.LENGTH_SHORT,
+        ).show()
         adapter.clearSelection()
     }
 
     private fun deleteSelected() {
         val tasks = adapter.selectedTasks()
         if (tasks.isEmpty()) return
-        val check = deleteFileCheckBox()
+        val body = buildDeleteConfirmView()
+        val check = body.findViewById<CheckBox>(R.id.checkDeleteFile)
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.delete))
             .setMessage(getString(R.string.delete_selected_confirm, tasks.size))
-            .setView(check)
+            .setView(body)
             .setPositiveButton(R.string.delete) { _, _ ->
                 tasks.forEach {
                     startService(DownloadService.deleteIntent(this, it.id, check.isChecked))
@@ -1632,6 +1712,10 @@ class MainActivity : AppCompatActivity() {
         super.onResume()
         updateNavCounts()
         handler.post(ticker)
+        // 进程被系统回收后再回到前台：等待 Wi-Fi 的任务需要有人接管
+        if (synchronized(Repo.tasks) { Repo.tasks.any { it.status == Status.WAITING_WIFI } }) {
+            startService(DownloadService.intent(this, DownloadService.ACTION_RECHECK_WIFI))
+        }
     }
 
     override fun onPause() {

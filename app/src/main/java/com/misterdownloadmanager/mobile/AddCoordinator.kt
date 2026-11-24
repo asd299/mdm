@@ -130,6 +130,7 @@ class AddCoordinator(
     private fun statusText(status: Status): String = activity.getString(
         when (status) {
             Status.QUEUED -> R.string.queued_status
+            Status.WAITING_WIFI -> R.string.status_waiting_wifi
             Status.DOWNLOADING -> R.string.status_downloading
             Status.PAUSED -> R.string.status_paused
             Status.COMPLETED -> R.string.status_completed

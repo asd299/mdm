@@ -176,9 +176,10 @@ class DownloadsAdapter(
     private fun statusOrder(s: Status): Int = when (s) {
         Status.DOWNLOADING -> 0
         Status.QUEUED -> 1
-        Status.PAUSED -> 2
-        Status.FAILED -> 3
-        Status.COMPLETED -> 4
+        Status.WAITING_WIFI -> 2
+        Status.PAUSED -> 3
+        Status.FAILED -> 4
+        Status.COMPLETED -> 5
     }
 
     fun filteredTasks(): List<DownloadTask> = items.toList()
@@ -417,6 +418,10 @@ class DownloadsAdapter(
                 holder.status.setText(R.string.queued_status)
                 holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.status_paused))
             }
+            Status.WAITING_WIFI -> {
+                holder.status.setText(R.string.status_waiting_wifi)
+                holder.status.setTextColor(ContextCompat.getColor(ctx, R.color.status_wifi))
+            }
             Status.DOWNLOADING -> {
                 val pct = if (total > 0) " ${((done * 100) / total).toInt()}%" else ""
                 holder.status.text = "${ctx.getString(R.string.status_downloading)}$pct"
@@ -454,7 +459,7 @@ class DownloadsAdapter(
                 holder.action.imageTintList = ContextCompat.getColorStateList(ctx, R.color.mdm_accent)
                 holder.action.contentDescription = ctx.getString(R.string.pause)
             }
-            Status.PAUSED, Status.FAILED -> {
+            Status.PAUSED, Status.FAILED, Status.WAITING_WIFI -> {
                 holder.action.setImageResource(R.drawable.ic_resume)
                 holder.action.imageTintList = ContextCompat.getColorStateList(ctx, R.color.status_running)
                 holder.action.contentDescription = ctx.getString(R.string.resume)

@@ -369,12 +369,46 @@ class ScreenshotTest {
         }
     }
 
+    /** 开启「仅限 Wi-Fi」时的等待状态：橙色标签 + 继续按钮 */
+    @Test
+    fun renderWifiWaiting() {
+        val ctx = ApplicationProvider.getApplicationContext<Context>()
+        val dir = ctx.filesDir.absolutePath
+        synchronized(Repo.tasks) {
+            Repo.tasks.clear()
+            Repo.tasks.add(
+                DownloadTask(
+                    id = "w1", url = "https://example.com/ubuntu-24.04-desktop-amd64.iso",
+                    fileName = "ubuntu-24.04-desktop-amd64.iso", dir = dir,
+                    totalBytes = 5_000_000_000, status = Status.WAITING_WIFI,
+                    segments = mutableListOf(Segment(0, 0, 5_000_000_000, 1_200_000_000)),
+                )
+            )
+            Repo.tasks.add(
+                DownloadTask(
+                    id = "w2", url = "https://example.com/Movies/Dune.Part.Two.2024.mkv",
+                    fileName = "Dune.Part.Two.2024.mkv", dir = dir,
+                    totalBytes = 12_000_000_000, status = Status.DOWNLOADING,
+                    segments = mutableListOf(Segment(0, 0, 12_000_000_000, 4_000_000_000)),
+                )
+            )
+        }
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
+                rv.layoutAnimation = null
+                rv.requestLayout()
+                shot(a.window.decorView, 1080, 2280, "/tmp/shot_wifi.png")
+            }
+        }
+    }
+
     /** 删除确认弹窗：勾选框左右留白应与标题对齐 */
     @Test
     fun renderDeleteDialog() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
-                val m = MainActivity::class.java.getDeclaredMethod("deleteFileCheckBox")
+                val m = MainActivity::class.java.getDeclaredMethod("buildDeleteConfirmView")
                 m.isAccessible = true
                 val check = m.invoke(a) as View
                 val d = com.google.android.material.dialog.MaterialAlertDialogBuilder(a)

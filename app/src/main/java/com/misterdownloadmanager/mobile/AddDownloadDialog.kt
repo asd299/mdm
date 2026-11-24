@@ -2,8 +2,6 @@ package com.misterdownloadmanager.mobile
 
 import android.content.ClipboardManager
 import android.content.Context
-import android.net.ConnectivityManager
-import android.net.NetworkCapabilities
 import android.os.Bundle
 import android.os.Handler
 import android.os.Looper
@@ -226,7 +224,9 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
         }
 
         cbWifi.setOnCheckedChangeListener { _, checked ->
-            prefs.edit().putBoolean("wifi_only", checked).apply()
+            prefs.edit().putBoolean(WifiPolicy.KEY_WIFI_ONLY, checked).apply()
+            // 与设置里的开关共用同一份偏好，改完立刻让服务重新评估等待中的任务
+            ctx.startService(DownloadService.intent(ctx, DownloadService.ACTION_RECHECK_WIFI))
         }
         cbRetry.setOnCheckedChangeListener { _, checked ->
             prefs.edit().putBoolean("auto_retry", checked).apply()
@@ -236,14 +236,16 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
             val url = et.text?.toString()?.trim() ?: ""
             if (!Regex("^https?://\\S+$").matches(url)) {
                 Toast.makeText(ctx, R.string.invalid_url, Toast.LENGTH_SHORT).show()
-            } else if (startNow && cbWifi.isChecked && !isOnWifi(ctx)) {
-                Toast.makeText(ctx, R.string.no_wifi, Toast.LENGTH_LONG).show()
             } else {
+                // 开了仅限 Wi-Fi 又不在 Wi-Fi：照常建任务，让它以「等待 Wi-Fi」挂起，
+                // 不再用一个 Toast 把用户挡在门外（任务就此消失，反而更困惑）
+                val waitWifi = startNow && cbWifi.isChecked && !isOnWifi(ctx)
                 val name = etName.text?.toString()?.trim() ?: ""
                 // 用户改过（或自己输入）的名字才锁定，自动填入的探测名仍允许被服务端真实名字替换
                 val manual = name.isNotEmpty() && name != probeName
                 onStart2?.invoke(url, name, manual, startNow)
                 dismiss()
+                if (waitWifi) Toast.makeText(ctx, R.string.add_waiting_wifi, Toast.LENGTH_LONG).show()
             }
         }
         v.findViewById<MaterialButton>(R.id.btnStart).setOnClickListener { send(true) }
@@ -252,13 +254,5 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
         return v
     }
 
-    private fun isOnWifi(ctx: Context): Boolean {
-        return try {
-            val cm = ctx.getSystemService(Context.CONNECTIVITY_SERVICE) as ConnectivityManager
-            val caps = cm.getNetworkCapabilities(cm.activeNetwork)
-            caps != null && caps.hasTransport(NetworkCapabilities.TRANSPORT_WIFI)
-        } catch (_: Exception) {
-            true
-        }
-    }
+    private fun isOnWifi(ctx: Context): Boolean = WifiPolicy.onWifi(ctx)
 }

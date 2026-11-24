@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 删除确认里的勾选框：22dp、圆角 3dp，选中填主色 + 白勾，未选中灰色描边 -->
+<selector xmlns:android="http://schemas.android.com/apk/res/android">
+    <item android:state_checked="true" android:drawable="@drawable/ic_checkbox_on" />
+    <item android:drawable="@drawable/ic_checkbox_off" />
+</selector>

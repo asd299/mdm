@@ -93,7 +93,7 @@ object FileTypes {
         Cat.ALL -> true
         Cat.RUNNING -> t.status == Status.DOWNLOADING || t.status == Status.QUEUED
         Cat.DONE -> t.status == Status.COMPLETED
-        Cat.PAUSED -> t.status == Status.PAUSED
+        Cat.PAUSED -> t.status == Status.PAUSED || t.status == Status.WAITING_WIFI
         Cat.FAILED -> t.status == Status.FAILED
         else -> true
     }

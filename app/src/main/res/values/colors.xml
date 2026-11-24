@@ -30,6 +30,7 @@
     <color name="black">#000000</color>
     <color name="status_running">#007AFF</color>
     <color name="status_paused">#8E8E93</color>
+    <color name="status_wifi">#FF9500</color>
     <color name="status_done">#34C759</color>
     <color name="status_failed">#FF3B30</color>
 
