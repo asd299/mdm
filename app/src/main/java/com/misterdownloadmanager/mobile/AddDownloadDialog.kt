@@ -14,7 +14,6 @@ import android.widget.EditText
 import android.widget.TextView
 import android.widget.Toast
 import com.google.android.material.bottomsheet.BottomSheetDialogFragment
-import com.google.android.material.button.MaterialButton
 import com.google.android.material.materialswitch.MaterialSwitch
 import java.net.HttpURLConnection
 import java.net.URL
@@ -248,9 +247,10 @@ class AddDownloadDialog : BottomSheetDialogFragment() {
                 if (waitWifi) Toast.makeText(ctx, R.string.add_waiting_wifi, Toast.LENGTH_LONG).show()
             }
         }
-        v.findViewById<MaterialButton>(R.id.btnStart).setOnClickListener { send(true) }
-        v.findViewById<MaterialButton>(R.id.btnAdd).setOnClickListener { send(false) }
-        v.findViewById<MaterialButton>(R.id.btnCancel).setOnClickListener { dismiss() }
+        // 「开始下载」在标题右侧（属性页关闭按钮的位置），底部只剩「取消 / 添加」
+        v.findViewById<View>(R.id.btnStart).setOnClickListener { send(true) }
+        v.findViewById<View>(R.id.btnAdd).setOnClickListener { send(false) }
+        v.findViewById<View>(R.id.btnCancel).setOnClickListener { dismiss() }
         return v
     }
 
