@@ -18,7 +18,7 @@ import android.util.AttributeSet
 import org.xmlpull.v1.XmlPullParser
 
 /**
- * 平滑圆角（iOS continuous corner）背景 Drawable。
+ * 圆角背景 Drawable（标准圆弧，描边 / 渐变 / 分角半径）。
  *
  * 用法（在 res/drawable 里就能带参数，布局不用改）：
  * ```
@@ -27,8 +27,8 @@ import org.xmlpull.v1.XmlPullParser
  *     app:smColor="@color/ios_card"
  *     app:smRadius="16dp" />
  * ```
- * 支持整圆 / 分角半径、描边与线性渐变；[getOutline] 上报同一条平滑路径，
- * 所以卡片阴影、`clipToOutline` 的裁剪也都是平滑圆角，不会在角上露出直角。
+ * 支持整圆 / 分角半径、描边与线性渐变；[getOutline] 上报同一条路径，
+ * 所以卡片阴影、`clipToOutline` 的裁剪都与绘制完全一致，不会在角上露出直角。
  */
 class SmoothShapeDrawable @JvmOverloads constructor(
     initRadius: Float = 0f,

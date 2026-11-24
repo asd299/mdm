@@ -1,5 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- iOS 平滑圆角卡片（连续圆角路径，阴影也跟着平滑） -->
+<!-- 圆角卡片（标准圆弧，阴影轮廓与绘制一致） -->
 <drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
     xmlns:app="http://schemas.android.com/apk/res-auto"
     app:smColor="@color/ios_card"

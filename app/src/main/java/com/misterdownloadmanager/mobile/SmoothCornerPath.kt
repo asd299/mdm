@@ -1,21 +1,20 @@
 package com.misterdownloadmanager.mobile
 
 import android.graphics.Path
+import android.graphics.RectF
 
 /**
- * iOS 风格的「连续圆角」（smooth corns）路径。
+ * 全项目共用的圆角路径。
  *
- * 普通 `addRoundRect` 画的是圆弧圆角：切点处曲率从 0 直接跳到 1/r，转角显得突兀。
- * iOS 的 continuous corner 在切点处曲率从 0 平滑过渡，观感更「软」也更整。
+ * 统一走 `Path.addRoundRect` 的标准圆弧圆角：切点处就是真正的 1/4 圆，
+ * 与 Material 卡片、系统控件的圆角语言一致。之前尝试过「连续圆角」的
+ * 三次贝塞尔近似（控制点内收），在小半径上角部会显得发尖、发斜，
+ * 实际观感不如标准圆弧，这里回退到圆弧实现。
  *
- * 这里用一段三次贝塞尔近似：端点仍在圆角切点上，两个控制点沿两边各回退 [K]×半径，
- * 曲线在 45° 方向比圆弧略靠外（更饱满），但进出角完全平顺。全项目共用同一算法，
- * 小到徽标、大到抽屉都是同一种圆角语言。
+ * 用法统一，小到徽标、大到抽屉都是同一套圆角绘制，方便 `getOutline` /
+ * `clipToOutline` 与绘制结果完全对齐。
  */
 object SmoothCornerPath {
-
-    /** 控制点相对半径的回退比例：0 为直角，越大越接近圆弧 */
-    private const val K = 0.44f
 
     /** 四角半径依次为 左上 / 右上 / 右下 / 左下 */
     fun build(
@@ -34,50 +33,15 @@ object SmoothCornerPath {
         val h = bottom - top
         if (w <= 0f || h <= 0f) return
 
+        // 单角半径不能超过短边一半，否则相邻两角会互相吃掉
         val maxR = minOf(w, h) / 2f
-        val rTL = topLeft.coerceIn(0f, maxR)
-        val rTR = topRight.coerceIn(0f, maxR)
-        val rBR = bottomRight.coerceIn(0f, maxR)
-        val rBL = bottomLeft.coerceIn(0f, maxR)
-
-        path.moveTo(left + rTL, top)
-        // 上边 → 右上角
-        path.lineTo(right - rTR, top)
-        if (rTR > 0f) {
-            path.cubicTo(
-                right - rTR + K * rTR, top,
-                right, top + rTR - K * rTR,
-                right, top + rTR,
-            )
-        }
-        // 右边 → 右下角
-        path.lineTo(right, bottom - rBR)
-        if (rBR > 0f) {
-            path.cubicTo(
-                right, bottom - rBR + K * rBR,
-                right - rBR + K * rBR, bottom,
-                right - rBR, bottom,
-            )
-        }
-        // 下边 → 左下角
-        path.lineTo(left + rBL, bottom)
-        if (rBL > 0f) {
-            path.cubicTo(
-                left + rBL - K * rBL, bottom,
-                left, bottom - rBL + K * rBL,
-                left, bottom - rBL,
-            )
-        }
-        // 左边 → 左上角
-        path.lineTo(left, top + rTL)
-        if (rTL > 0f) {
-            path.cubicTo(
-                left, top + rTL - K * rTL,
-                left + rTL - K * rTL, top,
-                left + rTL, top,
-            )
-        }
-        path.close()
+        val radii = floatArrayOf(
+            topLeft.coerceIn(0f, maxR), topLeft.coerceIn(0f, maxR),
+            topRight.coerceIn(0f, maxR), topRight.coerceIn(0f, maxR),
+            bottomRight.coerceIn(0f, maxR), bottomRight.coerceIn(0f, maxR),
+            bottomLeft.coerceIn(0f, maxR), bottomLeft.coerceIn(0f, maxR),
+        )
+        path.addRoundRect(RectF(left, top, right, bottom), radii, Path.Direction.CW)
     }
 
     /** 四角同半径的快捷方式 */

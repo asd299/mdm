@@ -369,10 +369,61 @@ class ScreenshotTest {
         }
     }
 
+    /** 删除确认弹窗：勾选框左右留白应与标题对齐 */
+    @Test
+    fun renderDeleteDialog() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val m = MainActivity::class.java.getDeclaredMethod("deleteFileCheckBox")
+                m.isAccessible = true
+                val check = m.invoke(a) as View
+                val d = com.google.android.material.dialog.MaterialAlertDialogBuilder(a)
+                    .setTitle("删除任务")
+                    .setMessage("将删除「Interstellar.2014.2160p.mkv」及其已下载的文件。")
+                    .setView(check)
+                    .setPositiveButton("删除", null)
+                    .setNegativeButton("取消", null)
+                    .show()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val decor = d.window!!.decorView
+                decor.measure(
+                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.AT_MOST),
+                    View.MeasureSpec.makeMeasureSpec(2280, View.MeasureSpec.AT_MOST),
+                )
+                shot(
+                    decor,
+                    decor.measuredWidth.coerceAtLeast(600),
+                    decor.measuredHeight.coerceAtLeast(400),
+                    "/tmp/shot_delete.png",
+                )
+                d.dismiss()
+            }
+        }
+    }
+
+    /** 添加下载链接：操作按钮已移到标题下方 */
+    @Test
+    fun renderAddDialog() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                a.findViewById<View>(R.id.fab).performClick()
+                org.robolectric.shadows.ShadowLooper.idleMainLooper()
+                val d = ShadowDialog.getLatestDialog() ?: return@onActivity
+                val decor = d.window!!.decorView
+                decor.measure(
+                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
+                    View.MeasureSpec.makeMeasureSpec(2280, View.MeasureSpec.AT_MOST),
+                )
+                println("ADD_DIALOG_H ${decor.measuredHeight}")
+                shot(decor, 1080, decor.measuredHeight.coerceAtLeast(600), "/tmp/shot_add.png")
+                d.dismiss()
+            }
+        }
+    }
+
     /** 崩溃日志页：圆润卡片风格 */
     @Test
-    fun renderCrashLog() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
+    fun renderCrashLog() {        val ctx = ApplicationProvider.getApplicationContext<Context>()
         CrashHandler.recordSoftError(
             ctx, "下载分段校验",
             IllegalStateException("下载分段校验失败：连接提前中断"),

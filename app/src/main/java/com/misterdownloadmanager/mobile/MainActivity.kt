@@ -205,7 +205,10 @@ class MainActivity : AppCompatActivity() {
             onItemClick = { task -> showProperties(task) },
             onItemLongClick = { task ->
                 if (sortPanelOpen) collapseSortPanel()
-                // 长按进入多选：立刻关掉下拉刷新，避免手指继续下滑时触发刷新
+                // 长按进入多选：本次手势剩余部分只归列表，父级（下拉刷新 / 抽屉）不要再抢
+                recycler.requestDisallowInterceptTouchEvent(true)
+                // 长按那几百毫秒里手指可能已经轻微下移，父级或许已进入拖拽状态；
+                // 立刻关掉刷新并收起可能已经露头的指示器
                 swipeRefresh.isEnabled = false
                 if (swipeRefresh.isRefreshing) swipeRefresh.isRefreshing = false
                 adapter.toggle(task)
@@ -231,7 +234,15 @@ class MainActivity : AppCompatActivity() {
         swipeRefresh.setProgressBackgroundColorSchemeColor(ContextCompat.getColor(this, R.color.ios_card))
         swipeRefresh.setDistanceToTriggerSync(dp(72))
         swipeRefresh.setOnChildScrollUpCallback { _, _ -> recycler.canScrollVertically(-1) }
-        swipeRefresh.setOnRefreshListener { refreshList() }
+        swipeRefresh.setOnRefreshListener {
+            // 多选状态下松手不应刷新：长按进入多选时手指可能已经把刷新拉出一半，
+            // 这里兜底收起指示器，避免「长按之后过一会儿列表自己刷新」
+            if (adapter.selectionMode) {
+                swipeRefresh.isRefreshing = false
+            } else {
+                refreshList()
+            }
+        }
 
         adapter.refresh()
         attachSwipe()
@@ -1038,10 +1049,16 @@ class MainActivity : AppCompatActivity() {
     }
 
     /** 删除确认里那个「删除源文件」勾选框，默认勾上；取消勾选后只移除任务记录 */
-    private fun deleteFileCheckBox(): CheckBox = CheckBox(this).apply {
-        id = R.id.checkDeleteFile
-        text = getString(R.string.delete_with_file)
-        isChecked = true
+    private fun deleteFileCheckBox(): CheckBox {
+        // setView 的容器本身没有左右内边距，直接塞 CheckBox 会紧贴对话框边缘；
+        // 这里补上与标题 / 正文一致的 24dp 缩进，勾选框不再顶着边框
+        val padH = (24 * resources.displayMetrics.density).toInt()
+        return com.google.android.material.checkbox.MaterialCheckBox(this).apply {
+            id = R.id.checkDeleteFile
+            text = getString(R.string.delete_with_file)
+            isChecked = true
+            setPadding(padH, 0, padH, 0)
+        }
     }
 
     private fun confirmDelete(task: DownloadTask) {
@@ -1059,7 +1076,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 属性面板：与版本说明同一种贴底展开（默认半屏，点抓手 / 标题拉满）。
-     * 所有值点一下即复制，底部左「打开」右「分享」。
+     * 所有值点一下即复制，标题下方左「打开」右「分享」。
      */
     private fun showProperties(task: DownloadTask) {
         if (propsSheet?.isShowing == true) return
@@ -1433,6 +1450,11 @@ class MainActivity : AppCompatActivity() {
             ) {
                 val item = viewHolder.itemView
                 val w = item.width.coerceAtLeast(1)
+                // 只在手指真正拖动时记录位移：回弹动画期间 dX 会一路衰减到 0，
+                // 若把它记成「最后一次位移」，松手后的阈值判断就永远不成立（左滑选不中）
+                if (isCurrentlyActive && actionState == ItemTouchHelper.ACTION_STATE_SWIPE) {
+                    lastDx = dX
+                }
                 // 进度按「滑过卡片 42% 宽度」归一，视觉反馈比默认的硬阈值线性得多
                 val p = (kotlin.math.abs(dX) / (w * 0.42f)).coerceIn(0f, 1f)
 
