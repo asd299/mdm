@@ -143,7 +143,7 @@ object SaveStore {
         if (tree != null) {
             saveViaSaf(context, tree, src, name, mime)?.let { return it }
             val rel = relativePathOf(tree)
-            if (rel != null) {
+            if (rel != null && Build.VERSION.SDK_INT >= 29) {
                 saveViaMediaStore(context, src, name, mime, rel)?.let { return it }
             }
             val fallback = saveToDefault(context, src, name, mime)

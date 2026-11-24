@@ -1,5 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <LinearLayout xmlns:android="http://schemas.android.com/apk/res/android"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
     android:layout_width="match_parent"
     android:layout_height="wrap_content"
     android:background="?attr/selectableItemBackground"
@@ -52,5 +53,5 @@
         android:layout_marginStart="6dp"
         android:importantForAccessibility="no"
         android:src="@drawable/ic_chevron_right"
-        android:tint="@color/ios_label_3" />
+        app:tint="@color/ios_label_3" />
 </LinearLayout>
