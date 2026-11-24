@@ -1,16 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!-- 降序 / 顺序切换胶囊 -->
 <selector xmlns:android="http://schemas.android.com/apk/res/android">
-    <item android:state_pressed="true">
-        <shape android:shape="rectangle">
-            <solid android:color="#CCE4FF" />
-            <corners android:radius="13dp" />
-        </shape>
-    </item>
-    <item>
-        <shape android:shape="rectangle">
-            <solid android:color="@color/mdm_primary_container" />
-            <corners android:radius="13dp" />
-        </shape>
-    </item>
+    <item android:state_pressed="true" android:drawable="@drawable/smooth_order_chip_pressed" />
+    <item android:drawable="@drawable/smooth_order_chip_normal" />
 </selector>

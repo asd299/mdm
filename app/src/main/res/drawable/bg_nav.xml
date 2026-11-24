@@ -1,8 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/ios_card" />
-    <corners
-        android:topRightRadius="@dimen/drawer_corner"
-        android:bottomRightRadius="@dimen/drawer_corner" />
-</shape>
+<!-- 侧边栏面板：只圆右侧两角，半径与 DrawerPanelLayout 的裁剪共用 @dimen/drawer_corner -->
+<drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:smColor="@color/ios_card"
+    app:smRadiusTopRight="@dimen/drawer_corner"
+    app:smRadiusBottomRight="@dimen/drawer_corner" />

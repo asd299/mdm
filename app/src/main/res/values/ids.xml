@@ -2,4 +2,6 @@
 <resources>
     <!-- 代码里创建的全屏载体（属性 / 版本说明面板的容器），给个 id 便于测试定位 -->
     <item name="panelHost" type="id" />
+    <!-- 删除确认框里的「同时删除文件」勾选框 -->
+    <item name="checkDeleteFile" type="id" />
 </resources>

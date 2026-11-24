@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 面板底部主按钮：蓝色实心，iOS 平滑圆角 -->
+<drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:smColor="@color/ios_blue"
+    app:smRadius="14dp" />

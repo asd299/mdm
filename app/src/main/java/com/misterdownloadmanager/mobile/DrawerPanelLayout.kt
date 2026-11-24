@@ -4,7 +4,7 @@ import android.content.Context
 import android.graphics.Canvas
 import android.graphics.Outline
 import android.graphics.Path
-import android.graphics.RectF
+import android.os.Build
 import android.util.AttributeSet
 import android.view.View
 import android.view.ViewOutlineProvider
@@ -26,7 +26,6 @@ class DrawerPanelLayout @JvmOverloads constructor(
 ) : LinearLayout(context, attrs) {
 
     private val clip = Path()
-    private val bounds = RectF()
     private var radius = 0f
 
     init {
@@ -36,8 +35,12 @@ class DrawerPanelLayout @JvmOverloads constructor(
             override fun getOutline(view: View, outline: Outline) {
                 if (clip.isEmpty) {
                     outline.setRect(0, 0, view.width, view.height)
-                } else {
+                } else if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.R) {
                     outline.setPath(clip)
+                } else {
+                    // API 24–29 没有 setPath；圆角矩形是凸路径，可以用 setConvexPath
+                    @Suppress("DEPRECATION")
+                    outline.setConvexPath(clip)
                 }
             }
         }
@@ -52,12 +55,10 @@ class DrawerPanelLayout @JvmOverloads constructor(
         clip.reset()
         if (w <= 0 || h <= 0) return
         val r = radius.coerceAtMost(w / 2f).coerceAtMost(h / 2f)
-        bounds.set(0f, 0f, w.toFloat(), h.toFloat())
-        // 顺序：左上、右上、右下、左下 —— 只圆右侧
-        clip.addRoundRect(
-            bounds,
-            floatArrayOf(0f, 0f, r, r, r, r, 0f, 0f),
-            Path.Direction.CW,
+        // 只圆右侧两角，路径与 bg_nav 一致，都是 iOS 平滑圆角
+        SmoothCornerPath.build(
+            clip, 0f, 0f, w.toFloat(), h.toFloat(),
+            topLeft = 0f, topRight = r, bottomRight = r, bottomLeft = 0f,
         )
     }
 

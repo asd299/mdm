@@ -1,6 +1,7 @@
 package com.misterdownloadmanager.mobile
 
 import org.junit.Assert.assertEquals
+import org.junit.Assert.assertNotEquals
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
@@ -49,6 +50,12 @@ class VersionSchemeTest {
         assertTrue("上游版本号缺失", up.version.matches(Regex("""\d+\.\d+\.\d+""")))
         assertTrue("上游发布日期格式不对：${up.released}", date.matches(up.released))
         assertTrue("核对日期格式不对：${up.checkedAt}", date.matches(up.checkedAt))
-        assertEquals("对外链接应与上游地址一致", up.url, Changelog.PROJECT_URL)
+        // 关于页现在有两处地址：上游项目（用于跟进）与本项目（项目主页 / 检查更新）
+        assertEquals(
+            "本项目地址应指向自己的仓库",
+            "https://github.com/${Changelog.PROJECT_REPO}",
+            Changelog.PROJECT_URL,
+        )
+        assertNotEquals("本项目地址不应与上游混用", up.url, Changelog.PROJECT_URL)
     }
 }

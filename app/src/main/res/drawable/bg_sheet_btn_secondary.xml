@@ -1,0 +1,6 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!-- 面板底部次按钮：浅灰填充 -->
+<drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:smColor="@color/ios_fill"
+    app:smRadius="14dp" />

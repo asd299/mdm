@@ -157,29 +157,6 @@ class PropertyDialogTest {
         }
     }
 
-    /** 长按菜单里应有“属性”，且不再出现“分享”（分享移入属性页） */
-    @Test
-    fun longPressMenuHasPropertiesInsteadOfShare() {
-        ActivityScenario.launch(MainActivity::class.java).use { sc ->
-            sc.onActivity { a ->
-                val task = sample(a.filesDir.absolutePath)
-                synchronized(Repo.tasks) { Repo.tasks.add(0, task) }
-                val m = MainActivity::class.java.getDeclaredMethod(
-                    "buildItemMenu", DownloadTask::class.java, Boolean::class.javaPrimitiveType
-                )
-                m.isAccessible = true
-                @Suppress("UNCHECKED_CAST")
-                val pair = m.invoke(a, task, true) as Pair<List<String>, List<() -> Unit>>
-                val items = pair.first
-                val actions = pair.second
-                assertTrue("菜单里没有属性：$items", items.contains("属性"))
-                assertTrue("菜单里没有多选：$items", items.contains("多选"))
-                assertTrue("分享应已从菜单移除：$items", !items.contains("分享"))
-                assertEquals("菜单项与动作数量不一致", items.size, actions.size)
-            }
-        }
-    }
-
     /** 属性面板：主界面 + 遮罩 + 贴底面板叠一张，确认半屏高度与排版 */
     @Test
     fun renderProperties() {
@@ -210,8 +187,6 @@ class PropertyDialogTest {
                     )
                     a.window.decorView.layout(0, 0, 1080, screenH)
                     a.window.decorView.draw(canvas)
-                    // 窗口遮罩不画在 decor 里，这里补一层，接近真机观感
-                    canvas.drawColor(android.graphics.Color.argb(89, 0, 0, 0))
                     d.window!!.decorView.measure(
                         View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),

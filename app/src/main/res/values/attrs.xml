@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 自定义平滑圆角 Drawable 的 XML 参数 -->
+    <declare-styleable name="SmoothShapeDrawable">
+        <!-- 填充色；设置了渐变起始/结束色时以渐变为准 -->
+        <attr name="smColor" format="color" />
+        <!-- 四角统一半径，可被下面四个分角半径覆盖 -->
+        <attr name="smRadius" format="dimension" />
+        <attr name="smRadiusTopLeft" format="dimension" />
+        <attr name="smRadiusTopRight" format="dimension" />
+        <attr name="smRadiusBottomRight" format="dimension" />
+        <attr name="smRadiusBottomLeft" format="dimension" />
+        <!-- 描边 -->
+        <attr name="smStrokeWidth" format="dimension" />
+        <attr name="smStrokeColor" format="color" />
+        <!-- 线性渐变（可选） -->
+        <attr name="smGradientStart" format="color" />
+        <attr name="smGradientEnd" format="color" />
+        <!-- 渐变方向，与 shape 的 gradient angle 一致，默认 315° -->
+        <attr name="smGradientAngle" format="float" />
+    </declare-styleable>
+</resources>

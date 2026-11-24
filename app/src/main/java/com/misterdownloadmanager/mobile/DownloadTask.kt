@@ -159,12 +159,23 @@ object Repo {
         save(context)
     }
 
-    fun remove(context: Context, task: DownloadTask) {
+    /**
+     * 删除任务记录。
+     *
+     * @param deleteFiles 勾选「删除源文件」时为 true：连同已下载的成品一起删；
+     *                    取消勾选时保留已完成的文件，只清掉应用内部的分片与未完成条目。
+     */
+    fun remove(context: Context, task: DownloadTask, deleteFiles: Boolean = true) {
         synchronized(tasks) { tasks.removeAll { it.id == task.id } }
+        // 未完成的分片没有保留价值，任何情况下都清理
         task.partFile.delete()
-        task.finalFile.delete()
-        // 直写公共目录的任务，删除时把未完成/已完成的条目一起清掉，避免留下孤儿文件
-        PublicStore.deleteToken(context, task.publicTarget)
+        // 取消勾选时，已完成任务的成品（私有副本或公共目录里的文件）都要留住
+        val keepFile = !deleteFiles && task.status == Status.COMPLETED
+        if (!keepFile) {
+            task.finalFile.delete()
+            // 直写公共目录的任务，删除时把条目一起清掉，避免留下孤儿文件
+            PublicStore.deleteToken(context, task.publicTarget)
+        }
         save(context)
     }
 

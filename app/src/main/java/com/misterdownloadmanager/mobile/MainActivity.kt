@@ -27,6 +27,7 @@ import android.view.ViewConfiguration
 import android.view.View
 import android.view.ViewGroup
 import android.view.inputmethod.InputMethodManager
+import android.widget.CheckBox
 import android.widget.EditText
 import android.widget.ImageView
 import android.text.TextUtils
@@ -89,10 +90,6 @@ class MainActivity : AppCompatActivity() {
     private var sortMode: SortMode = SortMode.TIME
     private var sortAscending = false
     private var sortPanelOpen = false
-
-    /** 是否已展开某项的操作面板（状态以适配器为准，面板插在该项正下方） */
-    private val itemPanelOpen: Boolean
-        get() = ::adapter.isInitialized && adapter.expandedId != null
 
     private val pickDir: ActivityResultLauncher<Uri?> =
         registerForActivityResult(ActivityResultContracts.OpenDocumentTree()) { uri ->
@@ -204,21 +201,18 @@ class MainActivity : AppCompatActivity() {
             onPauseResume = { task -> onPauseResume(task) },
             onDelete = { task -> confirmDelete(task) },
             onOpen = { task -> openFile(task) },
-            // 点击就地展开操作面板（和「排序」同一种交互），长按进入多选
-            onItemClick = { task -> showItemPanel(task) },
+            // 点击直接展开属性面板；长按进入多选
+            onItemClick = { task -> showProperties(task) },
             onItemLongClick = { task ->
                 if (sortPanelOpen) collapseSortPanel()
-                if (itemPanelOpen) collapseItemPanel()
+                // 长按进入多选：立刻关掉下拉刷新，避免手指继续下滑时触发刷新
+                swipeRefresh.isEnabled = false
+                if (swipeRefresh.isRefreshing) swipeRefresh.isRefreshing = false
                 adapter.toggle(task)
                 true
             },
             onSelectionChanged = { updateSelectionUi() },
         )
-        // 操作面板是列表里的一行，插在对应项正下方
-        adapter.panelFactory = { parent ->
-            layoutInflater.inflate(R.layout.item_action_panel, parent, false)
-        }
-        adapter.panelBinder = { view, task -> bindItemPanel(view, task) }
         adapter.sortMode = sortMode
         adapter.sortAscending = sortAscending
         adapter.statusCat = statusCat
@@ -243,7 +237,7 @@ class MainActivity : AppCompatActivity() {
         attachSwipe()
         setupActionRow()
 
-        // 滚动列表时收起排序面板；操作面板贴在项下方，属于列表内容，滚动时保留
+        // 滚动列表时收起排序面板
         recycler.addOnScrollListener(object : RecyclerView.OnScrollListener() {
             override fun onScrollStateChanged(rv: RecyclerView, newState: Int) {
                 if (newState != RecyclerView.SCROLL_STATE_IDLE && sortPanelOpen) collapseSortPanel()
@@ -825,7 +819,7 @@ class MainActivity : AppCompatActivity() {
         Toast.makeText(this, getString(R.string.cleared_count, toRemove.size), Toast.LENGTH_SHORT).show()
     }
 
-    /** 保存到所选目录失败时提示一次，并告诉用户可以在点击列表项的操作面板里重试 */
+    /** 保存到所选目录失败时提示一次，具体错误可以在列表项的属性面板里看到 */
     private fun notifySaveFailures() {
         val fresh = synchronized(Repo.tasks) {
             Repo.tasks.filter {
@@ -1043,162 +1037,29 @@ class MainActivity : AppCompatActivity() {
         }
     }
 
+    /** 删除确认里那个「删除源文件」勾选框，默认勾上；取消勾选后只移除任务记录 */
+    private fun deleteFileCheckBox(): CheckBox = CheckBox(this).apply {
+        id = R.id.checkDeleteFile
+        text = getString(R.string.delete_with_file)
+        isChecked = true
+    }
+
     private fun confirmDelete(task: DownloadTask) {
+        val check = deleteFileCheckBox()
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.delete))
             .setMessage(getString(R.string.delete_confirm, task.fileName.ifBlank { task.url }))
+            .setView(check)
             .setPositiveButton(R.string.delete) { _, _ ->
-                startService(DownloadService.intent(this, DownloadService.ACTION_DELETE, DownloadService.EXTRA_ID to task.id))
+                startService(DownloadService.deleteIntent(this, task.id, check.isChecked))
             }
             .setNegativeButton(android.R.string.cancel, null)
             .show()
     }
 
-    /** 长按/点击弹出的操作项；拆成独立方法便于单测覆盖 */
-    private fun buildItemMenu(task: DownloadTask, fromLongPress: Boolean): Pair<List<String>, List<() -> Unit>> {
-        val items = mutableListOf<String>()
-        val actions = mutableListOf<() -> Unit>()
-        when (task.status) {
-            Status.DOWNLOADING, Status.QUEUED -> {
-                items.add(getString(R.string.pause)); actions.add { onPauseResume(task) }
-            }
-            Status.PAUSED, Status.FAILED -> {
-                items.add(getString(R.string.resume)); actions.add { onPauseResume(task) }
-                if (task.status == Status.FAILED) {
-                    items.add(getString(R.string.copy_error)); actions.add { copyError(task) }
-                }
-            }
-            Status.COMPLETED -> {
-                items.add(getString(R.string.open_file)); actions.add { openFile(task) }
-                // 之前写入失败，或旧版本下载的文件还没有「保存位置」记录：允许重新落盘
-                val canResave = !task.saveError.isNullOrBlank() ||
-                    (task.savedLocation.isBlank() && SaveStore.isCustom(this))
-                if (canResave) {
-                    items.add(getString(R.string.save_retry)); actions.add { retrySave(task) }
-                }
-            }
-        }
-        // 属性取代原来的“分享”入口；分享能力保留在属性页底部
-        items.add(getString(R.string.properties)); actions.add { showProperties(task) }
-        items.add(getString(R.string.copy_link)); actions.add {
-            val cm = getSystemService(Context.CLIPBOARD_SERVICE) as ClipboardManager
-            cm.setPrimaryClip(ClipData.newPlainText("url", task.url))
-            Toast.makeText(this, "已复制链接", Toast.LENGTH_SHORT).show()
-        }
-        items.add(getString(R.string.open_link)); actions.add {
-            try {
-                startActivity(Intent(Intent.ACTION_VIEW, Uri.parse(task.url)))
-            } catch (_: Exception) {
-                Toast.makeText(this, "没有浏览器", Toast.LENGTH_SHORT).show()
-            }
-        }
-        if (fromLongPress) {
-            items.add(getString(R.string.multi_select)); actions.add { adapter.toggle(task) }
-        }
-        items.add(getString(R.string.delete)); actions.add { confirmDelete(task) }
-        return items to actions
-    }
-
-    /**
-     * 列表项操作面板：插在该项正下方（与「排序」同一种就地展开，不弹浮层）。
-     * 再点同一项收起；点别的项则换到那一项下面。
-     */
-    private fun showItemPanel(task: DownloadTask) {
-        if (sortPanelOpen) collapseSortPanel()
-        if (adapter.expandedId == task.id) {
-            collapseItemPanel()
-            return
-        }
-        adapter.setExpanded(task.id)
-        scrollPanelIntoView(task.id)
-    }
-
-    /** 面板展开后如果被挤在屏幕下方，就轻轻滚上来一点，避免只露出半截 */
-    private fun scrollPanelIntoView(taskId: String) {
-        val pos = adapter.positionOf(taskId)
-        if (pos < 0) return
-        recycler.post {
-            val panelVh = recycler.findViewHolderForAdapterPosition(pos + 1) ?: return@post
-            val visibleBottom = recycler.height - recycler.paddingBottom
-            val overflow = panelVh.itemView.bottom - visibleBottom
-            if (overflow > 0) recycler.smoothScrollBy(0, overflow + dp(10))
-        }
-    }
-
-    private fun collapseItemPanel() {
-        adapter.setExpanded(null)
-    }
-
-    /** 填充面板内容：一行三个按钮，顺序与 [buildItemMenu] 一致 */
-    private fun bindItemPanel(panel: View, task: DownloadTask) {
-        val grid = panel.findViewById<LinearLayout>(R.id.itemActionGrid)
-        grid.removeAllViews()
-        val (items, actions) = buildItemMenu(task, false)
-
-        var row: LinearLayout? = null
-        items.forEachIndexed { index, label ->
-            if (index % 3 == 0) {
-                row = LinearLayout(this).apply {
-                    orientation = LinearLayout.HORIZONTAL
-                    layoutParams = LinearLayout.LayoutParams(
-                        LinearLayout.LayoutParams.MATCH_PARENT,
-                        LinearLayout.LayoutParams.WRAP_CONTENT,
-                    ).apply { topMargin = if (index == 0) 0 else dp(6) }
-                }
-                grid.addView(row)
-            }
-            val chip = layoutInflater.inflate(R.layout.item_action_chip, row, false)
-            chip.findViewById<ImageView>(R.id.chipIcon).setImageResource(iconForAction(label))
-            chip.findViewById<TextView>(R.id.chipText).text = label
-            chip.setOnClickListener {
-                collapseItemPanel()
-                actions[index].invoke()
-            }
-            row?.addView(chip)
-        }
-        // 末行不足三个时补等宽占位，按钮不会一个撑满整行
-        repeat((3 - items.size % 3) % 3) {
-            row?.addView(View(this).apply {
-                layoutParams = LinearLayout.LayoutParams(0, 1, 1f).apply {
-                    marginStart = dp(3)
-                    marginEnd = dp(3)
-                }
-            })
-        }
-    }
-
-    /** 操作项用哪个图标：按文案映射，文案变了这里也要跟着改 */
-    private fun iconForAction(label: String): Int = when (label) {
-        getString(R.string.pause) -> R.drawable.ic_pause
-        getString(R.string.resume) -> R.drawable.ic_resume
-        getString(R.string.open), getString(R.string.open_file) -> R.drawable.ic_file_open
-        getString(R.string.properties) -> R.drawable.ic_info
-        getString(R.string.copy_link) -> R.drawable.ic_copy
-        getString(R.string.open_link) -> R.drawable.ic_link
-        getString(R.string.multi_select) -> R.drawable.ic_select_all
-        getString(R.string.delete) -> R.drawable.ic_delete
-        getString(R.string.save_retry) -> R.drawable.ic_folder
-        getString(R.string.copy_error) -> R.drawable.ic_bug
-        else -> R.drawable.ic_info
-    }
-
-    /** 复制单个任务的错误信息（失败原因）到剪切板 */
-    private fun copyError(task: DownloadTask) {
-        val text = buildString {
-            append("任务：").append(task.fileName.ifBlank { task.url }).append('\n')
-            append("链接：").append(task.url).append('\n')
-            append("状态：").append(statusText(task.status)).append('\n')
-            append("错误：").append(task.error ?: "未知错误")
-        }
-        if (CrashHandler.copyToClipboard(this, text))
-            Toast.makeText(this, R.string.error_copied, Toast.LENGTH_SHORT).show()
-        else
-            Toast.makeText(this, R.string.crash_copy_failed, Toast.LENGTH_SHORT).show()
-    }
-
     /**
      * 属性面板：与版本说明同一种贴底展开（默认半屏，点抓手 / 标题拉满）。
-     * 所有值点一下即复制，底部保留 分享 / 打开 / 关闭。
+     * 所有值点一下即复制，底部左「打开」右「分享」。
      */
     private fun showProperties(task: DownloadTask) {
         if (propsSheet?.isShowing == true) return
@@ -1241,7 +1102,6 @@ class MainActivity : AppCompatActivity() {
         val panel = PanelSheet(this, view)
         panel.bindToggle(view.findViewById(R.id.propHeader))
         panel.bindClose(view.findViewById(R.id.btnPropClose))
-        panel.bindClose(view.findViewById(R.id.btnPropDismiss))
         view.findViewById<View>(R.id.btnPropShare).setOnClickListener {
             panel.dismiss()
             shareTask(task)
@@ -1349,37 +1209,6 @@ class MainActivity : AppCompatActivity() {
         return null
     }
 
-    /** 保存到所选目录失败后，手动重试一次（文件仍在应用临时目录里） */
-    private fun retrySave(task: DownloadTask) {
-        val src = task.finalFile
-        if (!src.exists()) {
-            Toast.makeText(this, R.string.save_retry_no_file, Toast.LENGTH_SHORT).show()
-            return
-        }
-        Toast.makeText(this, R.string.save_retrying, Toast.LENGTH_SHORT).show()
-        Thread {
-            val saved = SaveStore.save(this, src, task.fileName, DownloadEngine.guessMime(task.fileName))
-            runOnUiThread {
-                if (isFinishing || isDestroyed) return@runOnUiThread
-                task.publicSaved = saved.ok
-                task.savedLocation = saved.location
-                task.savedUri = saved.uri
-                task.saveError = saved.error
-                Repo.save(this)
-                adapter.refresh()
-                if (saved.ok) {
-                    Toast.makeText(
-                        this, getString(R.string.save_retry_done, saved.location), Toast.LENGTH_LONG
-                    ).show()
-                } else {
-                    Toast.makeText(
-                        this, getString(R.string.save_retry_failed, saved.error ?: ""), Toast.LENGTH_LONG
-                    ).show()
-                }
-            }
-        }.start()
-    }
-
     private fun shareTask(task: DownloadTask) {
         val uri = if (task.status == Status.COMPLETED) openableUri(task) else null
         if (uri != null) {
@@ -1401,14 +1230,13 @@ class MainActivity : AppCompatActivity() {
 
     private fun updateSelectionUi() {
         val sel = adapter.selectionMode
+        // 选中状态下列表是「选择」而不是「刷新」，下拉手势不该刷新列表
+        if (::swipeRefresh.isInitialized) swipeRefresh.isEnabled = !sel
         selectionBar.visibility = if (sel) View.VISIBLE else View.GONE
         fab.visibility = if (sel) View.GONE else View.VISIBLE
         // 多选时让位给底部批量操作条
         actionRow.visibility = if (sel) View.GONE else View.VISIBLE
-        if (sel) {
-            if (sortPanelOpen) collapseSortPanel()
-            if (itemPanelOpen) collapseItemPanel()
-        }
+        if (sel && sortPanelOpen) collapseSortPanel()
         setHeaderTitle(
             if (sel) {
                 getString(R.string.selected_count, adapter.selectedIds.size)
@@ -1454,12 +1282,14 @@ class MainActivity : AppCompatActivity() {
     private fun deleteSelected() {
         val tasks = adapter.selectedTasks()
         if (tasks.isEmpty()) return
+        val check = deleteFileCheckBox()
         MaterialAlertDialogBuilder(this)
             .setTitle(getString(R.string.delete))
-            .setMessage("确定删除所选的 ${tasks.size} 个任务吗？（已完成的文件也会从磁盘删除）")
+            .setMessage(getString(R.string.delete_selected_confirm, tasks.size))
+            .setView(check)
             .setPositiveButton(R.string.delete) { _, _ ->
                 tasks.forEach {
-                    startService(DownloadService.intent(this, DownloadService.ACTION_DELETE, DownloadService.EXTRA_ID to it.id))
+                    startService(DownloadService.deleteIntent(this, it.id, check.isChecked))
                 }
                 adapter.clearSelection()
             }
@@ -1739,10 +1569,9 @@ class MainActivity : AppCompatActivity() {
 
     override fun onOptionsItemSelected(item: MenuItem): Boolean = super.onOptionsItemSelected(item)
 
-    /** 搜索展开 / 进入二级页前，把列表内外的展开面板都收起来 */
+    /** 搜索展开 / 进入二级页前，把展开的面板都收起来 */
     private fun collapsePanelsForSearch() {
         if (sortPanelOpen) collapseSortPanel()
-        if (itemPanelOpen) collapseItemPanel()
         propsSheet?.dismiss()
     }
 
@@ -1764,13 +1593,17 @@ class MainActivity : AppCompatActivity() {
             // 搜索展开时，返回键先退出搜索，而不是直接退出应用
             searchItem?.isActionViewExpanded == true -> collapseSearch()
             // 有展开的面板先收面板，再考虑多选 / 退出
-            itemPanelOpen || sortPanelOpen -> {
-                if (sortPanelOpen) collapseSortPanel()
-                if (itemPanelOpen) collapseItemPanel()
-            }
+            sortPanelOpen -> collapseSortPanel()
             adapter.selectionMode -> adapter.clearSelection()
             else -> super.onBackPressed()
         }
+    }
+
+    override fun onDestroy() {
+        // 面板是独立窗口，Activity 退出时立即收掉，避免窗口泄漏
+        propsSheet?.dismissNow()
+        propsSheet = null
+        super.onDestroy()
     }
 
     override fun onResume() {

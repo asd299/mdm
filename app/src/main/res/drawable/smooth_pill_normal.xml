@@ -1,0 +1,7 @@
+<?xml version="1.0" encoding="utf-8"?>
+<drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:smColor="@color/ios_card"
+    app:smRadius="18dp"
+    app:smStrokeColor="@color/ios_separator"
+    app:smStrokeWidth="1dp" />

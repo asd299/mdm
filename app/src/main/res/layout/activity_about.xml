@@ -106,6 +106,26 @@
                 android:orientation="vertical">
 
                 <include
+                    android:id="@+id/rowCheckUpdate"
+                    layout="@layout/item_about_row" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="54dp"
+                    android:background="@color/ios_separator" />
+
+                <include
+                    android:id="@+id/rowProjectRepo"
+                    layout="@layout/item_about_row" />
+
+                <View
+                    android:layout_width="match_parent"
+                    android:layout_height="1dp"
+                    android:layout_marginStart="54dp"
+                    android:background="@color/ios_separator" />
+
+                <include
                     android:id="@+id/rowChangelog"
                     layout="@layout/item_about_row" />
 

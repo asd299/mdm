@@ -299,41 +299,6 @@ class ScreenshotTest {
         }
     }
 
-    /** 点击列表项：就地展开的操作面板 */
-    @Test
-    fun renderItemPanel() {
-        val ctx = ApplicationProvider.getApplicationContext<Context>()
-        val dir = ctx.filesDir.absolutePath
-        synchronized(Repo.tasks) {
-            Repo.tasks.clear()
-            Repo.tasks.add(
-                DownloadTask(
-                    id = "panel", url = "https://example.com/movie.mp4", fileName = "movie.mp4",
-                    dir = dir, totalBytes = 1000, status = Status.COMPLETED,
-                    segments = mutableListOf(Segment(0, 0, 1000, 1000)),
-                )
-            )
-        }
-        ActivityScenario.launch(MainActivity::class.java).use { sc ->
-            sc.onActivity { a ->
-                val rv = a.findViewById<androidx.recyclerview.widget.RecyclerView>(R.id.recycler)
-                // 入场动画需要真实帧时钟，静态截图里会画成空白
-                rv.layoutAnimation = null
-                (rv.adapter as DownloadsAdapter).refresh()
-                rv.measure(
-                    View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
-                    View.MeasureSpec.makeMeasureSpec(1500, View.MeasureSpec.EXACTLY),
-                )
-                rv.layout(0, 0, 1080, 1500)
-                val vh = rv.findViewHolderForAdapterPosition(0) ?: return@onActivity
-                vh.itemView.performClick()
-                org.robolectric.shadows.ShadowLooper.idleMainLooper()
-                org.robolectric.shadows.ShadowLooper.runUiThreadTasksIncludingDelayedTasks()
-                shot(a.window.decorView, 1080, 2280, "/tmp/shot_item_panel.png")
-            }
-        }
-    }
-
     /** 关于页：图标 / 名称 / 版本 + 各入口卡片 */
     @Test
     fun renderAbout() {
@@ -385,8 +350,6 @@ class ScreenshotTest {
                     )
                     a.window.decorView.layout(0, 0, 1080, screenH)
                     a.window.decorView.draw(canvas)
-                    // 窗口遮罩不画在 decor 里，这里补一层，接近真机观感
-                    canvas.drawColor(android.graphics.Color.argb(89, 0, 0, 0))
                     d.window!!.decorView.measure(
                         View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
                         View.MeasureSpec.makeMeasureSpec(screenH, View.MeasureSpec.EXACTLY),

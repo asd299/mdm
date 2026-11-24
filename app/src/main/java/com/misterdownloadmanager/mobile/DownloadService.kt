@@ -38,6 +38,7 @@ class DownloadService : Service() {
         const val ACTION_RESUME_ALL = "com.misterdownloadmanager.mobile.RESUME_ALL"
         const val EXTRA_URL = "url"
         const val EXTRA_ID = "id"
+        const val EXTRA_DELETE_FILE = "deleteFile"
         const val EXTRA_NAME = "name"
         const val EXTRA_START = "start"
         const val EXTRA_MANUAL = "manual"
@@ -48,6 +49,13 @@ class DownloadService : Service() {
             if (extra != null) i.putExtra(extra.first, extra.second)
             return i
         }
+
+        /** 删除任务：deleteFile 决定是否连已下载的文件一起删 */
+        fun deleteIntent(context: android.content.Context, id: String, deleteFile: Boolean): Intent =
+            Intent(context, DownloadService::class.java)
+                .setAction(ACTION_DELETE)
+                .putExtra(EXTRA_ID, id)
+                .putExtra(EXTRA_DELETE_FILE, deleteFile)
     }
 
     private lateinit var scope: CoroutineScope
@@ -90,7 +98,9 @@ class DownloadService : Service() {
             ACTION_DELETE -> intent.getStringExtra(EXTRA_ID)?.let { id ->
                 Repo.find(id)?.let { t ->
                     engine.pause(t.id)
-                    Repo.remove(this, t)
+                    // 默认删文件；用户取消勾选「删除源文件」时只移除记录
+                    val deleteFile = intent.getBooleanExtra(EXTRA_DELETE_FILE, true)
+                    Repo.remove(this, t, deleteFile)
                 }
             }
         }

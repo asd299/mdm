@@ -1,6 +1,6 @@
 <?xml version="1.0" encoding="utf-8"?>
-<shape xmlns:android="http://schemas.android.com/apk/res/android"
-    android:shape="rectangle">
-    <solid android:color="@color/ios_card" />
-    <corners android:radius="16dp" />
-</shape>
+<!-- iOS 平滑圆角卡片（连续圆角路径，阴影也跟着平滑） -->
+<drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
+    xmlns:app="http://schemas.android.com/apk/res-auto"
+    app:smColor="@color/ios_card"
+    app:smRadius="16dp" />

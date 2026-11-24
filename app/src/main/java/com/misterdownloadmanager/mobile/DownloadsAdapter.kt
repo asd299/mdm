@@ -1,7 +1,6 @@
 package com.misterdownloadmanager.mobile
 
 import android.content.Context
-import android.graphics.drawable.GradientDrawable
 import android.view.LayoutInflater
 import android.view.MotionEvent
 import android.view.View
@@ -14,7 +13,6 @@ import android.view.animation.OvershootInterpolator
 import androidx.core.content.ContextCompat
 import androidx.recyclerview.widget.DiffUtil
 import androidx.recyclerview.widget.RecyclerView
-import com.google.android.material.card.MaterialCardView
 import java.util.Locale
 
 /**
@@ -29,29 +27,13 @@ class DownloadsAdapter(
     private val onItemClick: (DownloadTask) -> Unit = {},
     private val onItemLongClick: (DownloadTask) -> Boolean = { false },
     private val onSelectionChanged: () -> Unit = {},
-) : RecyclerView.Adapter<RecyclerView.ViewHolder>() {
+) : RecyclerView.Adapter<DownloadsAdapter.VH>() {
 
     companion object {
         private const val PAYLOAD_PROGRESS = 1
-        private const val TYPE_TASK = 0
-        private const val TYPE_PANEL = 1
     }
 
     private val items: MutableList<DownloadTask> = mutableListOf()
-
-    /**
-     * 展开在列表项正下方的操作面板：同一时间只展开一项，值为该项 id。
-     * 面板是 RecyclerView 的一行（不是浮层），所以滚动、下拉刷新时自然跟着走。
-     */
-    var expandedId: String? = null
-        private set
-
-    /** 面板视图由宿主创建 / 绑定：内容与业务动作都在 Activity 侧 */
-    var panelFactory: ((ViewGroup) -> View)? = null
-    var panelBinder: ((View, DownloadTask) -> Unit)? = null
-
-    /** 展开项被筛掉或删除时通知宿主，避免 Activity 侧状态残留 */
-    var onPanelClosed: (() -> Unit)? = null
 
     /**
      * 上一次真正绘制到界面上的内容快照。
@@ -147,13 +129,6 @@ class DownloadsAdapter(
         }
         val sorted = if (sortAscending) base else base.reversed()
 
-        // 展开项被筛掉（搜索 / 切分类 / 删除）时一并收起面板
-        var panelDropped = false
-        if (expandedId != null && sorted.none { it.id == expandedId }) {
-            expandedId = null
-            panelDropped = true
-        }
-
         val alive = snapshot.mapTo(HashSet()) { it.id }
         selectedIds.retainAll(alive)
         if (anchorId != null && !selectedIds.contains(anchorId!!)) anchorId = selectedIds.firstOrNull()
@@ -190,10 +165,9 @@ class DownloadsAdapter(
         sorted.forEach { lastStates[it.id] = stateOf(it) }
         lastStates.keys.retainAll(alive)
 
-        if (selectionChanged || panelDropped) {
+        if (selectionChanged) {
             notifyDataSetChanged()
-            if (selectionChanged) onSelectionChanged()
-            if (panelDropped) onPanelClosed?.invoke()
+            onSelectionChanged()
         } else {
             diff.dispatchUpdatesTo(this)
         }
@@ -209,51 +183,10 @@ class DownloadsAdapter(
 
     fun filteredTasks(): List<DownloadTask> = items.toList()
 
-    /** 面板行所在的 adapter 位置；没有展开项时返回 -1 */
-    private fun panelIndex(): Int {
-        val id = expandedId ?: return -1
-        val i = items.indexOfFirst { it.id == id }
-        return if (i < 0) -1 else i + 1
-    }
+    fun taskAt(position: Int): DownloadTask? = items.getOrNull(position)
 
-    /** adapter 位置 → 任务下标；面板行返回 -1 */
-    private fun itemIndexAt(position: Int): Int {
-        val p = panelIndex()
-        if (p < 0) return position
-        return when {
-            position < p -> position
-            position == p -> -1
-            else -> position - 1
-        }
-    }
-
-    fun taskAt(position: Int): DownloadTask? = items.getOrNull(itemIndexAt(position))
-
-    /** 按 id 找当前列表里的位置（含面板行偏移，滑动后重绑用，位置可能已变化） */
-    fun positionOf(id: String): Int {
-        val i = items.indexOfFirst { it.id == id }
-        if (i < 0) return -1
-        val p = panelIndex()
-        return if (p in 0..i) i + 1 else i
-    }
-
-    /**
-     * 展开 / 收起操作面板。
-     *
-     * 换项时直接整表刷新：面板行要在旧位置消失、在新位置出现，
-     * 两次增删通知在同一帧里容易打架，不如一次重建干净。
-     */
-    fun setExpanded(id: String?) {
-        if (expandedId == id) return
-        val old = panelIndex()
-        val target = id?.let { wanted -> items.indexOfFirst { it.id == wanted } } ?: -1
-        expandedId = if (target >= 0) id else null
-        when {
-            expandedId == null && old >= 0 -> notifyItemRemoved(old)
-            old < 0 && expandedId != null -> notifyItemInserted(target + 1)
-            else -> notifyDataSetChanged()
-        }
-    }
+    /** 按 id 找当前列表里的位置（滑动后位置可能已变化） */
+    fun positionOf(id: String): Int = items.indexOfFirst { it.id == id }
 
     // ---------- 多选 ----------
 
@@ -320,11 +253,23 @@ class DownloadsAdapter(
 
     // ---------- 视图 ----------
 
-    /** 操作面板行：内容整体交给宿主填充 */
-    inner class PanelVH(view: View) : RecyclerView.ViewHolder(view)
-
     inner class VH(v: View) : RecyclerView.ViewHolder(v) {
-        val card: MaterialCardView = v as MaterialCardView
+        val card: View = v
+
+        /** 普通 / 多选高亮两套平滑圆角背景，避免每次绑定都新建 Drawable */
+        val normalBg: SmoothShapeDrawable
+        val selectedBg: SmoothShapeDrawable
+
+        init {
+            val ctx = v.context
+            val density = ctx.resources.displayMetrics.density
+            normalBg = SmoothShapeDrawable(16 * density, ContextCompat.getColor(ctx, R.color.ios_card))
+            selectedBg = SmoothShapeDrawable(16 * density, ContextCompat.getColor(ctx, R.color.ios_card))
+                .apply {
+                    setStroke(3 * density, ContextCompat.getColor(ctx, R.color.mdm_primary))
+                }
+        }
+
         val iconBox: View = v.findViewById(R.id.iconBox)
         val ext: TextView = v.findViewById(R.id.tvExt)
         val name: TextView = v.findViewById(R.id.tvName)
@@ -379,35 +324,17 @@ class DownloadsAdapter(
         }
     }
 
-    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): RecyclerView.ViewHolder =
-        if (viewType == TYPE_PANEL) {
-            val factory = panelFactory
-            PanelVH(
-                factory?.invoke(parent)
-                    ?: LayoutInflater.from(parent.context)
-                        .inflate(R.layout.item_action_panel, parent, false)
-            )
-        } else {
-            VH(LayoutInflater.from(parent.context).inflate(R.layout.item_download, parent, false))
-        }
+    override fun onCreateViewHolder(parent: ViewGroup, viewType: Int): VH =
+        VH(LayoutInflater.from(parent.context).inflate(R.layout.item_download, parent, false))
 
-    override fun getItemViewType(position: Int): Int =
-        if (position == panelIndex()) TYPE_PANEL else TYPE_TASK
+    override fun getItemCount(): Int = items.size
 
-    override fun getItemCount(): Int = items.size + if (expandedId != null) 1 else 0
-
-    override fun onBindViewHolder(holder: RecyclerView.ViewHolder, position: Int) {
-        if (holder is PanelVH) {
-            // 面板行自身没有任务，绑的是紧挨着它上方的那一项（即展开项）
-            val t = items.firstOrNull { it.id == expandedId } ?: return
-            panelBinder?.invoke(holder.itemView, t)
-            return
-        }
-        bindRow(holder as VH, position)
+    override fun onBindViewHolder(holder: VH, position: Int) {
+        bindRow(holder, position)
     }
 
     private fun bindRow(holder: VH, position: Int) {
-        val t = items[itemIndexAt(position)]
+        val t = items[position]
         bindHeader(holder, t)
         resetViewState(holder)
         if (holder.itemView.scaleX != 1f) {
@@ -421,13 +348,9 @@ class DownloadsAdapter(
     private fun bindHeader(holder: VH, t: DownloadTask) {
         val ctx = holder.itemView.context
 
-        // 多选高亮
-        if (selectionMode && selectedIds.contains(t.id)) {
-            holder.card.strokeWidth = 3
-            holder.card.strokeColor = ContextCompat.getColor(ctx, R.color.mdm_primary)
-        } else {
-            holder.card.strokeWidth = 0
-        }
+        // 多选高亮：换成带描边的平滑圆角背景
+        holder.card.background =
+            if (selectionMode && selectedIds.contains(t.id)) holder.selectedBg else holder.normalBg
         holder.ops.visibility = if (selectionMode) View.GONE else View.VISIBLE
 
         val cat = if (t.fileName.isBlank()) Cat.OTHER else FileTypes.catOf(t.fileName)
@@ -440,20 +363,15 @@ class DownloadsAdapter(
         holder.bound = t
     }
 
-    override fun onBindViewHolder(
-        holder: RecyclerView.ViewHolder,
-        position: Int,
-        payloads: MutableList<Any>,
-    ) {
-        if (holder is PanelVH || payloads.isEmpty()) {
+    override fun onBindViewHolder(holder: VH, position: Int, payloads: MutableList<Any>) {
+        if (payloads.isEmpty()) {
             onBindViewHolder(holder, position)
             return
         }
-        val vh = holder as VH
-        val t = items[itemIndexAt(position)]
-        bindHeader(vh, t)
-        resetViewState(vh)
-        bindProgress(vh, t)
+        val t = items[position]
+        bindHeader(holder, t)
+        resetViewState(holder)
+        bindProgress(holder, t)
     }
 
     /** 清掉滑动后残留的位移，避免这一行停在屏幕外（看似消失） */
@@ -551,15 +469,12 @@ class DownloadsAdapter(
 
     // ---------- 速度与格式化 ----------
 
-    private val badgeCache = HashMap<Int, GradientDrawable>()
+    private val badgeCache = HashMap<Int, SmoothShapeDrawable>()
 
-    private fun badgeDrawable(ctx: Context, color: Int): GradientDrawable =
+    /** 文件类型图标底：与其它卡片一致的 iOS 平滑圆角 */
+    private fun badgeDrawable(ctx: Context, color: Int): SmoothShapeDrawable =
         badgeCache.getOrPut(color) {
-            GradientDrawable().apply {
-                shape = GradientDrawable.RECTANGLE
-                cornerRadius = 12 * ctx.resources.displayMetrics.density
-                setColor(color)
-            }
+            SmoothShapeDrawable(12 * ctx.resources.displayMetrics.density, color)
         }
 
     private val speedMap = HashMap<String, Long>()
