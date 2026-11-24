@@ -88,6 +88,7 @@ class ListInteractionTest {
         )
         decor.layout(0, 0, 1233, 2673)
         val drawer = drawerOf(a)
+        drawer.requestLayout()
         drawer.measure(
             View.MeasureSpec.makeMeasureSpec(1233, View.MeasureSpec.EXACTLY),
             View.MeasureSpec.makeMeasureSpec(2673, View.MeasureSpec.EXACTLY),
@@ -114,8 +115,103 @@ class ListInteractionTest {
 
                 send(a, MotionEvent.ACTION_UP, 420f, 904f, 60)
                 assertTrue(
-                    "拖过一半松手应吸附为打开",
+                    "松手后应吸附为打开",
                     drawerOf(a).isDrawerOpen(androidx.core.view.GravityCompat.START),
+                )
+            }
+        }
+    }
+
+    /** 只往右滑一点点就该完全展开，不再因为「没过一半」弹回去 */
+    @Test
+    fun smallRightSwipeFullyOpensDrawer() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val panel = layoutDrawer(a)
+                val closedLeft = panel.left
+
+                // 慢速小位移：不带甩动，只看方向
+                send(a, MotionEvent.ACTION_DOWN, 60f, 900f, 0)
+                send(a, MotionEvent.ACTION_MOVE, 90f, 902f, 200)
+                send(a, MotionEvent.ACTION_MOVE, 110f, 903f, 400)
+                send(a, MotionEvent.ACTION_UP, 110f, 903f, 600)
+
+                assertTrue("抽屉应被拖动：$closedLeft -> ${panel.left}", panel.left > closedLeft)
+                assertTrue(
+                    "滑一点点松手也应完全展开",
+                    drawerOf(a).isDrawerOpen(androidx.core.view.GravityCompat.START),
+                )
+            }
+        }
+    }
+
+    /** 先右滑展开、再往左滑一段：应当关闭而不是继续打开 */
+    @Test
+    fun rightThenLeftClosesDrawer() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                layoutDrawer(a)
+
+                send(a, MotionEvent.ACTION_DOWN, 60f, 900f, 0)
+                send(a, MotionEvent.ACTION_MOVE, 200f, 902f, 100)
+                send(a, MotionEvent.ACTION_MOVE, 400f, 903f, 200)
+                // 手指往左滑回来一段（慢速，排除甩动影响）
+                send(a, MotionEvent.ACTION_MOVE, 300f, 904f, 700)
+                send(a, MotionEvent.ACTION_MOVE, 240f, 904f, 900)
+                send(a, MotionEvent.ACTION_UP, 240f, 904f, 1200)
+
+                assertTrue(
+                    "右滑后又左滑回来应关闭",
+                    !drawerOf(a).isDrawerOpen(androidx.core.view.GravityCompat.START),
+                )
+            }
+        }
+    }
+
+    /** 打开状态下左滑一点点：同样直接关闭 */
+    @Test
+    fun smallLeftSwipeClosesOpenDrawer() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                layoutDrawer(a)
+                drawerOf(a).openDrawer(GravityCompat.START)
+                ShadowLooper.idleMainLooper(600, TimeUnit.MILLISECONDS)
+                // Robolectric 不跑补间帧，按打开态重新布局一次，抽屉才真的停在 left = 0
+                val panel = layoutDrawer(a)
+                assertEquals("抽屉应停在完全打开位置", 0, panel.left)
+
+                send(a, MotionEvent.ACTION_DOWN, 700f, 900f, 0)
+                send(a, MotionEvent.ACTION_MOVE, 660f, 902f, 200)
+                send(a, MotionEvent.ACTION_MOVE, 630f, 903f, 400)
+                send(a, MotionEvent.ACTION_UP, 630f, 903f, 600)
+
+                assertTrue(
+                    "左滑一点点也应关闭",
+                    !drawerOf(a).isDrawerOpen(GravityCompat.START),
+                )
+            }
+        }
+    }
+
+    /** 顶部区域不能有不透明背景盖住面板自己的圆角（否则右上角是直角） */
+    @Test
+    fun drawerTopAreaDoesNotCoverCorner() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                layoutDrawer(a)
+                val scroll = a.findViewById<android.widget.ScrollView>(R.id.drawerScroll)
+                val column = scroll.getChildAt(0) as android.view.ViewGroup
+                val header = column.getChildAt(0)
+                assertTrue(
+                    "侧边栏顶部不应有不透明背景，否则会盖掉右上角圆角",
+                    header.background == null,
+                )
+                val panel = a.findViewById<View>(R.id.drawerPanel)
+                assertTrue("侧边栏面板应使用自定义裁剪容器", panel is DrawerPanelLayout)
+                val corner = a.resources.getDimension(R.dimen.drawer_corner)
+                assertTrue(
+                    "侧边栏圆角应收紧到 20dp：${corner / a.resources.displayMetrics.density}dp",
+                    corner / a.resources.displayMetrics.density <= 20.1f,
                 )
             }
         }

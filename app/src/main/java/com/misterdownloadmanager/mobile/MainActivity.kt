@@ -1006,12 +1006,6 @@ class MainActivity : AppCompatActivity() {
                         (MIN_REFRESH_MS - elapsed).coerceAtLeast(0)
                     )
                 }
-                Toast.makeText(
-                    this,
-                    if (added > 0) getString(R.string.refresh_found, added)
-                    else getString(R.string.refresh_done),
-                    Toast.LENGTH_SHORT
-                ).show()
             }
         }.start()
     }

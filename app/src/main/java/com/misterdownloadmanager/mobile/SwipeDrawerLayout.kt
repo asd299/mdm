@@ -18,7 +18,8 @@ import kotlin.math.abs
  * 直接 `openDrawer()`——抽屉是「弹」出来的，不跟手。这里改成：
  *
  * - 屏幕**任意位置**右滑都能拖动抽屉，位移完全跟着手指；
- * - 松手后按「拖过 42%」或甩动速度吸附到开 / 关，动画由 ViewDragHelper 收尾；
+ * - 松手后看「最后一段的方向」吸附：往开的方向挪过一点点就完全展开，中途往左滑回来
+ *   则直接关闭（不再要求拖过 42%，之前只滑一点点会弹回去，很别扭）；
  * - 打开后可在抽屉上左滑关闭，点遮罩也能关；
  * - 内容区随进度轻微右移，形成 iOS 那种前后层次。
  */
@@ -45,7 +46,21 @@ class SwipeDrawerLayout @JvmOverloads constructor(
     private var isOpen = false
     private var pendingState: Boolean? = null
 
+    /** 上一帧进度，用来判断手指方向 */
+    private var prevOffset = 0f
+
+    /** 本次手势中「最近一次反向」时的进度：松手后和它比方向 */
+    private var turnOffset = 0f
+    private var dir = 0
+
     private val slop = ViewConfiguration.get(context).scaledTouchSlop
+    private val density = resources.displayMetrics.density
+
+    /** 反向要超过这么多才算数，避免末尾抖动把方向判反 */
+    private val turnDeadZone = 4f * density
+
+    /** 甩动速度门槛（px/s），超过就按甩的方向吸附 */
+    private val flingVelocity = 650f * density
 
     private val dragHelper = ViewDragHelper.create(this, 1.05f, object : ViewDragHelper.Callback() {
         override fun tryCaptureView(child: View, pointerId: Int): Boolean = child === drawer
@@ -61,26 +76,53 @@ class SwipeDrawerLayout @JvmOverloads constructor(
 
         override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
             val w = drawer?.width ?: return
-            applyOffset(((left + w).toFloat() / w).coerceIn(0f, 1f))
+            val p = ((left + w).toFloat() / w).coerceIn(0f, 1f)
+            trackDirection(p)
+            applyOffset(p)
         }
 
         override fun onViewReleased(releasedChild: View, xvel: Float, yvel: Float) {
             val w = drawer?.width ?: return
             val p = ((releasedChild.left + w).toFloat() / w).coerceIn(0f, 1f)
-            // 甩动优先，其次看拖过的比例
+            // 甩动优先，其次看最后一段的移动方向
             val settleOpen = when {
-                xvel > 700f -> true
-                xvel < -700f -> false
-                else -> p > 0.42f
+                xvel > flingVelocity -> true
+                xvel < -flingVelocity -> false
+                p > turnOffset -> true
+                p < turnOffset -> false
+                else -> isOpen
             }
             settle(settleOpen)
         }
     })
 
+    /**
+     * 记录手指方向与拐点。
+     *
+     * 只要方向没变，拐点就停在手势起点；一旦反向超过 [turnDeadZone]，
+     * 拐点挪到反向前的位置。松手时进度比拐点大 → 展开，比拐点小 → 关闭。
+     */
+    private fun trackDirection(p: Float) {
+        val d = p - prevOffset
+        prevOffset = p
+        if (abs(d) < 1e-4f) return
+        val nd = if (d > 0f) 1 else -1
+        if (dir == 0) {
+            dir = nd
+            turnOffset = p - d
+        } else if (nd != dir) {
+            // 反向还没走过死区：当抖动忽略
+            if (abs(p - turnOffset) * (drawer?.width ?: 1) > turnDeadZone) {
+                dir = nd
+                turnOffset = p
+            }
+        }
+    }
+
     init {
         dragHelper.setEdgeTrackingEnabled(ViewDragHelper.EDGE_LEFT)
         // 稍微降低触发速度，轻甩即可吸附
-        dragHelper.setMinVelocity(600f * resources.displayMetrics.density)
+        dragHelper.setMinVelocity(550f * density)
         isClickable = false
     }
 
@@ -120,6 +162,10 @@ class SwipeDrawerLayout @JvmOverloads constructor(
                 startY = ev.y
                 tracking = true
                 dragging = false
+                // 新手势：方向与拐点从当前位置重新开始
+                prevOffset = currentOffset()
+                turnOffset = prevOffset
+                dir = 0
             }
 
             MotionEvent.ACTION_MOVE -> {
@@ -192,6 +238,14 @@ class SwipeDrawerLayout @JvmOverloads constructor(
             d.offsetLeftAndRight(target - d.left)
             applyOffset(if (toOpen) 1f else 0f)
         }
+    }
+
+    /** 当前进度：0 关闭、1 全开 */
+    private fun currentOffset(): Float {
+        val d = drawer ?: return if (isOpen) 1f else 0f
+        val w = d.width
+        if (w <= 0) return if (isOpen) 1f else 0f
+        return ((d.left + w).toFloat() / w).coerceIn(0f, 1f)
     }
 
     /** 抽屉进度：0 关闭、1 全开 */

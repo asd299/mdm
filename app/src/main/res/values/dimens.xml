@@ -1,0 +1,5 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <!-- 侧边栏面板右侧圆角：背景与子视图裁剪共用同一个值，避免两者错位 -->
+    <dimen name="drawer_corner">20dp</dimen>
+</resources>

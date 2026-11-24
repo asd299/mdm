@@ -68,6 +68,24 @@ class RefreshAndSearchTest {
         }
     }
 
+    /** 下拉刷新只更新列表与指示器，不再弹「已刷新 / 发现 N 个新任务」提示 */
+    @Test
+    fun refreshStaysSilent() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                val swipe = a.findViewById<SwipeRefreshLayout>(R.id.swipeRefresh)
+                swipe.isRefreshing = true
+                callRefresh(a)
+                waitUntil(5_000) { !swipe.isRefreshing }
+                assertFalse(swipe.isRefreshing)
+                org.junit.Assert.assertNull(
+                    "下拉刷新不应弹提示",
+                    org.robolectric.shadows.ShadowToast.getTextOfLatestToast(),
+                )
+            }
+        }
+    }
+
     private fun waitUntil(timeoutMs: Long, condition: () -> Boolean) {
         val deadline = System.currentTimeMillis() + timeoutMs
         while (System.currentTimeMillis() < deadline) {

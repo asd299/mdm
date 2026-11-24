@@ -517,16 +517,15 @@
         android:focusable="false" />
 
     <!-- 侧边栏（自定义可折叠面板，替代 NavigationView） -->
-    <LinearLayout
+    <com.misterdownloadmanager.mobile.DrawerPanelLayout
         android:id="@+id/drawerPanel"
         android:layout_width="308dp"
         android:layout_height="match_parent"
         android:layout_gravity="start"
         android:background="@drawable/bg_nav"
-        android:clipToOutline="true"
         android:elevation="12dp"
         android:orientation="vertical">
 
         <include layout="@layout/drawer_content" />
-    </LinearLayout>
+    </com.misterdownloadmanager.mobile.DrawerPanelLayout>
 </com.misterdownloadmanager.mobile.SwipeDrawerLayout>
