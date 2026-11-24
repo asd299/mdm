@@ -113,7 +113,15 @@ class AboutActivity : AppCompatActivity() {
                 when {
                     tag == null -> {
                         value.text = getString(R.string.about_check_failed)
-                        Toast.makeText(this, R.string.about_update_failed, Toast.LENGTH_SHORT).show()
+                        // 仓库未公开 / 网络不通时拿不到版本号，至少给一个打开发布页的出口
+                        MaterialAlertDialogBuilder(this)
+                            .setTitle(R.string.about_check_failed)
+                            .setMessage(R.string.about_update_failed)
+                            .setPositiveButton(R.string.about_update_go) { _, _ ->
+                                openUrl(Changelog.RELEASES_PAGE)
+                            }
+                            .setNegativeButton(android.R.string.cancel, null)
+                            .show()
                     }
                     UpdateChecker.isNewer(tag, BuildConfig.VERSION_NAME) -> {
                         val latest = tag.removePrefix("v").removePrefix("V")
