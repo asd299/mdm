@@ -130,6 +130,9 @@
     <string name="sort_status">下载状态</string>
     <string name="select_all">全选</string>
     <string name="share">分享</string>
+    <string name="share_link">分享链接</string>
+    <string name="share_file">分享文件</string>
+    <string name="share_no_file">文件不存在，无法分享</string>
     <string name="selected_count">已选 %1$d 项</string>
     <string name="batch_paused">已暂停 %1$d 个任务</string>
     <string name="batch_resumed">已开始 %1$d 个任务</string>

@@ -61,7 +61,11 @@ class DrawerSpringTest {
 
                 assertEquals("阻尼比应为 1（临界阻尼）", 1f, drawer.lastSpringDamping, 1e-4f)
                 assertTrue("应带上向右的手指速度：${drawer.lastSpringVelocity}", drawer.lastSpringVelocity > 0f)
-                assertEquals("向右甩应吸附到全开", 0f, drawer.lastSpringTarget, 0.5f)
+                assertTrue("向右甩应吸附到全开", drawer.lastSpringToOpen)
+                // 弹簧只驱动 translationX：left 已落到边界，剩余位移全在合成层
+                assertEquals(0f, drawer.lastSpringTarget, 0.5f)
+                val panel = a.findViewById<View>(R.id.drawerPanel)
+                assertTrue("应收起成合成位移：${panel.translationX}", panel.translationX != 0f)
                 assertTrue("openDrawer 后应立即视为打开", drawer.isDrawerOpen(GravityCompat.START))
             }
         }
@@ -87,7 +91,7 @@ class DrawerSpringTest {
 
                 assertEquals(1f, drawer.lastSpringDamping, 1e-4f)
                 assertTrue("应带上向左的速度：${drawer.lastSpringVelocity}", drawer.lastSpringVelocity < 0f)
-                assertEquals("应吸附到关闭", -panel.width.toFloat(), drawer.lastSpringTarget, 0.5f)
+                assertTrue("应吸附到关闭", !drawer.lastSpringToOpen)
             }
         }
     }
@@ -114,7 +118,8 @@ class DrawerSpringTest {
                 )
 
                 send(a, MotionEvent.ACTION_UP, 80f + w * 1.6f, 904f, 55)
-                assertEquals("松手后应弹回全开边界", 0f, drawer.lastSpringTarget, 0.5f)
+                assertTrue("松手后应弹回全开边界", drawer.lastSpringToOpen)
+                assertEquals("弹簧目标是 translationX = 0", 0f, drawer.lastSpringTarget, 0.5f)
                 assertEquals("回弹同样用临界阻尼", 1f, drawer.lastSpringDamping, 1e-4f)
             }
         }

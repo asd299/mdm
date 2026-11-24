@@ -10,12 +10,14 @@ import androidx.test.core.app.ActivityScenario
 import org.junit.Assert.assertEquals
 import org.junit.Assert.assertFalse
 import org.junit.Assert.assertNotNull
+import org.junit.Assert.assertNull
 import org.junit.Assert.assertTrue
 import org.junit.Test
 import org.junit.runner.RunWith
 import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import org.robolectric.shadows.ShadowDialog
+import org.robolectric.shadows.ShadowToast
 import org.robolectric.shadows.ShadowLooper
 import java.util.concurrent.TimeUnit
 
@@ -70,7 +72,9 @@ class ItemPanelTest {
         (rv.adapter as DownloadsAdapter).refresh()
         ShadowLooper.idleMainLooper()
         layoutList(rv)
-        rv.findViewHolderForAdapterPosition(0)!!.itemView.performClick()
+        // 点左侧文件徽标才是「看属性」；点卡片本身是打开文件
+        rv.findViewHolderForAdapterPosition(0)!!.itemView
+            .findViewById<View>(R.id.iconBox).performClick()
         ShadowLooper.idleMainLooper()
         return ShadowDialog.getLatestDialog()
     }
@@ -86,7 +90,7 @@ class ItemPanelTest {
         return host
     }
 
-    /** 点击列表项：直接弹出属性面板，半屏且贴住屏幕底 */
+    /** 点击列表项左侧徽标：直接弹出属性面板，半屏且贴住屏幕底 */
     @Test
     fun tappingItemOpensPropertiesFlushToBottom() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
@@ -110,27 +114,56 @@ class ItemPanelTest {
         }
     }
 
-    /** 属性面板底部只有两个按钮：左打开、右分享 */
+    /** 属性面板底部只有两个按钮：左分享链接、右分享文件，且贴在列表下方 */
     @Test
-    fun propertiesSheetHasOpenLeftAndShareRight() {
+    fun propertiesSheetHasShareLinkLeftAndShareFileRight() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 seed(a)
                 val d = openFirst(a)
                 layoutHost(d, a)
 
-                val open = d.findViewById<TextView>(R.id.btnPropOpen)
-                val share = d.findViewById<TextView>(R.id.btnPropShare)
-                assertNotNull("应有打开按钮", open)
-                assertNotNull("应有分享按钮", share)
-                assertEquals("左按钮是打开", "打开", open!!.text.toString())
-                assertEquals("右按钮是分享", "分享", share!!.text.toString())
+                val link = d.findViewById<TextView>(R.id.btnPropShareLink)
+                val file = d.findViewById<TextView>(R.id.btnPropShareFile)
+                assertNotNull("应有分享链接按钮", link)
+                assertNotNull("应有分享文件按钮", file)
+                assertEquals("左按钮是分享链接", "分享链接", link!!.text.toString())
+                assertEquals("右按钮是分享文件", "分享文件", file!!.text.toString())
                 assertTrue(
-                    "打开应在分享左侧：open.left=${open.left}, share.left=${share.left}",
-                    open.left < share.left
+                    "分享链接应在分享文件左侧：link.left=${link.left}, file.left=${file.left}",
+                    link.left < file.left
                 )
-                assertEquals("两个按钮应在同一行", open.top, share.top)
+                assertEquals("两个按钮应在同一行", link.top, file.top)
+
+                val scroll = d.findViewById<View>(R.id.propScroll)!!
+                val bar = link.parent as View
+                assertTrue(
+                    "按钮应回到最下方、在属性列表下面：bar.top=${bar.top}, list.bottom=${scroll.bottom}",
+                    bar.top >= scroll.bottom
+                )
                 d.dismiss()
+            }
+        }
+    }
+
+    /** 点击卡片本身是打开文件，不再弹属性面板；没下完的任务给提示 */
+    @Test
+    fun tappingCardOpensFileInsteadOfProperties() {
+        ActivityScenario.launch(MainActivity::class.java).use { sc ->
+            sc.onActivity { a ->
+                seed(a)
+                val rv = a.findViewById<RecyclerView>(R.id.recycler)
+                (rv.adapter as DownloadsAdapter).refresh()
+                ShadowLooper.idleMainLooper()
+                layoutList(rv)
+
+                ShadowDialog.getLatestDialog()?.dismiss()
+                rv.findViewHolderForAdapterPosition(0)!!.itemView.performClick()
+                ShadowLooper.idleMainLooper()
+
+                assertNull("点卡片不应弹出属性面板", ShadowDialog.getLatestDialog())
+                // 样本文件并不存在，openFile 会明确提示，而不是静默失败
+                assertEquals("文件不存在", ShadowToast.getTextOfLatestToast())
             }
         }
     }

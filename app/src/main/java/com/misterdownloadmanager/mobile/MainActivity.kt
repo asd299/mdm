@@ -201,8 +201,9 @@ class MainActivity : AppCompatActivity() {
             onPauseResume = { task -> onPauseResume(task) },
             onDelete = { task -> confirmDelete(task) },
             onOpen = { task -> openFile(task) },
-            // 点击直接展开属性面板；长按进入多选
-            onItemClick = { task -> showProperties(task) },
+            // 点卡片 = 打开文件；点左侧徽标 = 展开属性；长按进入多选
+            onItemClick = { task -> openFromList(task) },
+            onIconClick = { task -> showProperties(task) },
             onItemLongClick = { task ->
                 if (sortPanelOpen) collapseSortPanel()
                 // 长按进入多选：本次手势剩余部分只归列表，父级（下拉刷新 / 抽屉）不要再抢
@@ -1145,7 +1146,7 @@ class MainActivity : AppCompatActivity() {
 
     /**
      * 属性面板：与版本说明同一种贴底展开（默认半屏，点抓手 / 标题拉满）。
-     * 所有值点一下即复制，标题下方左「打开」右「分享」。
+     * 所有值点一下即复制，底部左「分享链接」右「分享文件」。
      */
     private fun showProperties(task: DownloadTask) {
         if (propsSheet?.isShowing == true) return
@@ -1188,17 +1189,13 @@ class MainActivity : AppCompatActivity() {
         val panel = PanelSheet(this, view)
         panel.bindToggle(view.findViewById(R.id.propHeader))
         panel.bindClose(view.findViewById(R.id.btnPropClose))
-        view.findViewById<View>(R.id.btnPropShare).setOnClickListener {
+        view.findViewById<View>(R.id.btnPropShareLink).setOnClickListener {
             panel.dismiss()
-            shareTask(task)
+            shareLink(task)
         }
-        view.findViewById<View>(R.id.btnPropOpen).setOnClickListener {
-            if (task.status == Status.COMPLETED && openableUri(task) != null) {
-                panel.dismiss()
-                openFile(task)
-            } else {
-                Toast.makeText(this, R.string.prop_not_openable, Toast.LENGTH_SHORT).show()
-            }
+        view.findViewById<View>(R.id.btnPropShareFile).setOnClickListener {
+            panel.dismiss()
+            shareFile(task)
         }
         panel.onDismiss = { propsSheet = null }
         propsSheet = panel
@@ -1248,6 +1245,15 @@ class MainActivity : AppCompatActivity() {
         }
     )
 
+    /** 列表点击：已完成就直接打开，没下完则说清楚为什么打不开 */
+    private fun openFromList(task: DownloadTask) {
+        if (task.status != Status.COMPLETED) {
+            Toast.makeText(this, R.string.prop_not_openable, Toast.LENGTH_SHORT).show()
+            return
+        }
+        openFile(task)
+    }
+
     private fun openFile(task: DownloadTask) {
         val mime = DownloadEngine.guessMime(task.fileName)
         val uri = openableUri(task)
@@ -1296,21 +1302,24 @@ class MainActivity : AppCompatActivity() {
         return null
     }
 
-    private fun shareTask(task: DownloadTask) {
+    /** 只分享下载链接（文本） */
+    private fun shareLink(task: DownloadTask) {
+        val send = Intent(Intent.ACTION_SEND).setType("text/plain")
+            .putExtra(Intent.EXTRA_TEXT, task.url)
+        startActivity(Intent.createChooser(send, getString(R.string.share_link)))
+    }
+
+    /** 只分享已下载的文件；文件不在就提示，不偷偷改成分享链接 */
+    private fun shareFile(task: DownloadTask) {
         val uri = if (task.status == Status.COMPLETED) openableUri(task) else null
-        if (uri != null) {
-            val send = Intent(Intent.ACTION_SEND).setType(DownloadEngine.guessMime(task.fileName))
-                .putExtra(Intent.EXTRA_STREAM, uri)
-                .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
-            startActivity(Intent.createChooser(send, "分享文件"))
-        } else {
-            startActivity(
-                Intent.createChooser(
-                    Intent(Intent.ACTION_SEND).setType("text/plain")
-                        .putExtra(Intent.EXTRA_TEXT, task.url), "分享链接"
-                )
-            )
+        if (uri == null) {
+            Toast.makeText(this, R.string.share_no_file, Toast.LENGTH_SHORT).show()
+            return
         }
+        val send = Intent(Intent.ACTION_SEND).setType(DownloadEngine.guessMime(task.fileName))
+            .putExtra(Intent.EXTRA_STREAM, uri)
+            .addFlags(Intent.FLAG_GRANT_READ_URI_PERMISSION)
+        startActivity(Intent.createChooser(send, getString(R.string.share_file)))
     }
 
     // ---------- 多选 ----------
@@ -1398,7 +1407,8 @@ class MainActivity : AppCompatActivity() {
         val tasks = adapter.selectedTasks()
         if (tasks.isEmpty()) return
         if (tasks.size == 1) {
-            shareTask(tasks[0])
+            val one = tasks[0]
+            if (one.status == Status.COMPLETED) shareFile(one) else shareLink(one)
             return
         }
         val text = tasks.joinToString("\n") { "${it.fileName.ifBlank { it.url }}\n${it.url}" }

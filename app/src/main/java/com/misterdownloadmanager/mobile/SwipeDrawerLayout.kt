@@ -29,6 +29,11 @@ import kotlin.math.roundToInt
  * - 拖到全开 / 全关后继续拉，走橡皮筋阻尼（越拉越沉），松手由弹簧带着回弹到边界；
  * - 打开后可在抽屉上左滑关闭，点遮罩也能关；
  * - 内容区随进度轻微右移，形成 iOS 那种前后层次。
+ *
+ * 性能：拖动阶段由 ViewDragHelper 改 `left`（它只能这么走），但**松手后的弹簧只动
+ * `translationX`**。`offsetLeftAndRight` 每帧都会让父容器整棵树失效重绘，带着
+ * RecyclerView 跑会明显掉帧；`translationX` 只是 RenderNode 的合成变换，动画期间
+ * draw / layout 都不发生，同样的弹簧参数看起来会顺很多。
  */
 class SwipeDrawerLayout @JvmOverloads constructor(
     context: Context,
@@ -91,27 +96,25 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         private set
     internal var lastSpringDamping = 0f
         private set
+    internal var lastSpringToOpen = false
+        private set
 
     /** 松手时正在从 ViewDragHelper 收尾：abort() 会再回一次 onViewReleased，要忽略 */
     private var releasing = false
 
     /**
-     * 把抽屉的 left 包装成可动画属性。
+     * 弹簧只驱动 `translationX`。
      *
-     * 只动 `left` 而不动 `translationX`：ViewDragHelper 拖拽时改的也是 left，
-     * 两者混用会在「拖到一半松手」的瞬间跳一段。
+     * 吸附开始前先把抽屉的 `left` 摆到边界（全开 0 / 全关 -w），再把「视觉位置与边界
+     * 的差」写进 translationX，所以动画全程只改合成层，不触发任何 layout。
      */
-    private val drawerLeft = object : FloatPropertyCompat<View>("drawerLeft") {
-        override fun getValue(view: View): Float = view.left.toFloat()
+    private val drawerShift = object : FloatPropertyCompat<View>("drawerShift") {
+        override fun getValue(view: View): Float = view.translationX
 
         override fun setValue(view: View, value: Float) {
-            val delta = value.roundToInt() - view.left
-            if (delta != 0) {
-                view.offsetLeftAndRight(delta)
-                view.invalidate()
-            }
+            view.translationX = value
             val w = view.width
-            if (w > 0) applyOffset(((view.left + w).toFloat() / w).coerceIn(0f, 1f))
+            if (w > 0) applyOffset(((view.left + value + w) / w).coerceIn(0f, 1f))
         }
     }
 
@@ -136,6 +139,8 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         override fun clampViewPositionVertical(child: View, top: Int, dy: Int): Int = 0
 
         override fun onViewPositionChanged(changedView: View, left: Int, top: Int, dx: Int, dy: Int) {
+            // 拖动阶段完全由 left 决定位置，动画残留的合成位移必须先归零
+            if (changedView.translationX != 0f) changedView.translationX = 0f
             val w = drawer?.width ?: return
             if (w <= 0) return
             val p = ((left + w).toFloat() / w).coerceIn(0f, 1f)
@@ -229,6 +234,8 @@ class SwipeDrawerLayout @JvmOverloads constructor(
                 // 弹簧没跑完就按下去：停在当前位置，交给手指继续拖
                 val animating = spring != null
                 cancelSpring()
+                // 把合成位移折算回 left，后面 ViewDragHelper 改 left 不会叠加出跳变
+                flattenTranslation()
                 if (animating) isOpen = currentOffset() >= 0.5f
                 pendingState = null
                 startX = ev.x
@@ -277,6 +284,7 @@ class SwipeDrawerLayout @JvmOverloads constructor(
     private fun beginDrag(ev: MotionEvent) {
         val d = drawer ?: return
         dragging = true
+        flattenTranslation()
         val down = MotionEvent.obtain(ev)
         down.setAction(MotionEvent.ACTION_DOWN)
         down.setLocation(startX, startY)
@@ -309,7 +317,15 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         }
         isOpen = toOpen
         pendingState = toOpen
-        startSpring(if (toOpen) 0f else -w.toFloat(), velocity)
+        lastSpringToOpen = toOpen
+
+        // 视觉位置（left + 合成位移）在动画开始前后必须完全一致，否则会跳一帧
+        val visualLeft = d.left + d.translationX
+        val targetLeft = if (toOpen) 0 else -w
+        d.offsetLeftAndRight(targetLeft - d.left)
+        d.translationX = visualLeft - targetLeft
+        // 弹簧把 translationX 拉回 0：抽屉正好落在边界，全程只走合成，不重排内容
+        startSpring(0f, velocity)
     }
 
     private fun startSpring(target: Float, velocity: Float) {
@@ -319,7 +335,7 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         lastSpringVelocity = v
         lastSpringDamping = SpringForce.DAMPING_RATIO_NO_BOUNCY
 
-        val anim = SpringAnimation(d, drawerLeft, target)
+        val anim = SpringAnimation(d, drawerShift, target)
         anim.spring = SpringForce(target).apply {
             stiffness = springStiffness
             // 阻尼比 1：临界阻尼，不会越过目标来回晃；只剩「松手速度」带来的自然冲量
@@ -349,12 +365,22 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         spring = null
     }
 
+    /** 把合成位移折回 left，保证「拖拽改 left」与「弹簧改 translationX」不叠加 */
+    private fun flattenTranslation() {
+        val d = drawer ?: return
+        val shift = d.translationX
+        if (shift == 0f) return
+        d.offsetLeftAndRight(shift.roundToInt())
+        d.translationX = 0f
+    }
+
     /** 测试用：跳过动画直接落到边界（Robolectric 不跑补间帧） */
     internal fun snapTo(open: Boolean) {
         val d = drawer ?: return
         cancelSpring()
         pendingState = null
         isOpen = open
+        d.translationX = 0f
         val target = if (open) 0 else -d.width
         d.offsetLeftAndRight(target - d.left)
         applyOffset(if (open) 1f else 0f)
@@ -366,12 +392,12 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         return (over * overscrollDamping).coerceAtMost(maxOver)
     }
 
-    /** 当前进度：0 关闭、1 全开 */
+    /** 当前进度：0 关闭、1 全开（含合成位移） */
     private fun currentOffset(): Float {
         val d = drawer ?: return if (isOpen) 1f else 0f
         val w = d.width
         if (w <= 0) return if (isOpen) 1f else 0f
-        return ((d.left + w).toFloat() / w).coerceIn(0f, 1f)
+        return ((d.left + d.translationX + w).toFloat() / w).coerceIn(0f, 1f)
     }
 
     /** 抽屉进度：0 关闭、1 全开 */
@@ -394,15 +420,11 @@ class SwipeDrawerLayout @JvmOverloads constructor(
         val d = drawer ?: return
         val dw = d.measuredWidth
         if (dw <= 0) return
-        // 弹簧 / 拖拽越界期间发生重新布局，要保持当前进度，不能一下子跳回边界
-        val left = when {
-            spring?.isRunning == true -> ((currentOffset() - 1f) * dw).roundToInt()
-            dragging -> d.left
-            isOpen -> 0
-            else -> -dw
-        }
+        // 动画期间 left 已固定在目标边界，translationX 负责剩下的视觉位移；
+        // 拖拽中保持手指给的位置（可能越界），不要被重新布局拉回边界
+        val left = if (dragging) d.left else if (isOpen) 0 else -dw
         d.layout(left, 0, left + dw, h)
-        applyOffset(((left + dw).toFloat() / dw).coerceIn(0f, 1f))
+        applyOffset(currentOffset())
     }
 
     override fun onDetachedFromWindow() {

@@ -27,6 +27,8 @@ class DownloadsAdapter(
     private val onItemClick: (DownloadTask) -> Unit = {},
     private val onItemLongClick: (DownloadTask) -> Boolean = { false },
     private val onSelectionChanged: () -> Unit = {},
+    /** 点左侧文件徽标：展开属性面板 */
+    private val onIconClick: (DownloadTask) -> Unit = {},
 ) : RecyclerView.Adapter<DownloadsAdapter.VH>() {
 
     companion object {
@@ -290,6 +292,10 @@ class DownloadsAdapter(
                 bound?.let { t -> if (t.status == Status.COMPLETED) onOpen(t) else onPauseResume(t) }
             }
             del.setOnClickListener { bound?.let { onDelete(it) } }
+            // 左边的小徽标是「看详情」的入口：点卡片是打开文件，两者不能抢
+            iconBox.setOnClickListener {
+                bound?.let { t -> if (selectionMode) toggle(t) else onIconClick(t) }
+            }
             itemView.setOnClickListener {
                 bound?.let { t -> if (selectionMode) toggle(t) else onItemClick(t) }
             }
