@@ -73,6 +73,9 @@ class DownloadService : Service() {
     private val mainHandler = Handler(Looper.getMainLooper())
     private var networkCallback: ConnectivityManager.NetworkCallback? = null
 
+    /** 正在收尾：通知已被撤掉，ticker 不许再把它画回来 */
+    private var stopping = false
+
     override fun onCreate() {
         super.onCreate()
         Repo.init(this)
@@ -85,6 +88,8 @@ class DownloadService : Service() {
     }
 
     override fun onStartCommand(intent: Intent?, flags: Int, startId: Int): Int {
+        // 新的命令意味着又可能有活儿要干，解除上一次的收尾态
+        stopping = false
         startAsForeground()
         when (intent?.action) {
             ACTION_ADD -> intent.getStringExtra(EXTRA_URL)?.let {
@@ -138,6 +143,9 @@ class DownloadService : Service() {
                     val deleteFile = intent.getBooleanExtra(EXTRA_DELETE_FILE, true)
                     Repo.remove(this, t, deleteFile)
                 }
+                // 删除后立刻刷新通知，不能等 ticker / 收尾检查：
+                // 删的是最后一个任务时通知必须当场消失，否则会一直挂着「正在下载」
+                if (hasActiveWork()) updateNotification() else stopAndClearNotification()
             }
         }
         startTickerIfNeeded()
@@ -242,18 +250,35 @@ class DownloadService : Service() {
         }
     }
 
-    private fun onIdleCheck() {
-        // 等待 Wi-Fi 的任务也要让服务活着：否则网络恢复时没人把它们叫起来
-        val running = Repo.tasks.any {
+    /** 是否还有需要服务继续存活的任务（等待 Wi-Fi 也算：网络恢复时要有人叫醒它们） */
+    private fun hasActiveWork(): Boolean = synchronized(Repo.tasks) {
+        Repo.tasks.any {
             it.status == Status.DOWNLOADING || it.status == Status.QUEUED || it.status == Status.WAITING_WIFI
-        }
-        if (!running) {
-            stopForeground(STOP_FOREGROUND_REMOVE)
-            stopSelf()
         }
     }
 
+    private fun onIdleCheck() {
+        if (!hasActiveWork()) stopAndClearNotification()
+    }
+
+    /**
+     * 没有活儿了：先撤掉通知再退出前台。
+     *
+     * 之前只调 stopForeground：ticker 还在每 700ms notify 一次，会把刚撤掉的
+     * 「正在下载」又画回来，服务销毁后这条常驻通知就留在通知栏里清不掉。
+     */
+    private fun stopAndClearNotification() {
+        if (stopping) return
+        stopping = true
+        ticker?.cancel()
+        ticker = null
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIF_ID)
+        stopForeground(STOP_FOREGROUND_REMOVE)
+        stopSelf()
+    }
+
     private fun startTickerIfNeeded() {
+        if (stopping) return
         if (ticker?.isActive == true) return
         ticker = scope.launch {
             while (isActive) {
@@ -282,8 +307,11 @@ class DownloadService : Service() {
     }
 
     private fun buildNotification(): Notification {
-        val downloading = Repo.tasks.filter { it.status == Status.DOWNLOADING }
-        val waitingWifi = Repo.tasks.count { it.status == Status.WAITING_WIFI }
+        // 快照：下载线程会实时改任务状态，直接遍历可变的 Repo.tasks 会偶发并发修改异常，
+        // 异常一旦打断 ticker，通知就永远停在旧内容上
+        val snapshot = synchronized(Repo.tasks) { Repo.tasks.toList() }
+        val downloading = snapshot.filter { it.status == Status.DOWNLOADING }
+        val waitingWifi = snapshot.count { it.status == Status.WAITING_WIFI }
         val known = downloading.filter { it.totalBytes > 0 }
         val done = downloading.sumOf { it.downloadedBytes }
         val total = downloading.sumOf { if (it.totalBytes > 0) it.totalBytes else 0 }
@@ -309,13 +337,24 @@ class DownloadService : Service() {
     }
 
     private fun updateNotification() {
+        if (stopping) return
         val nm = getSystemService(NOTIFICATION_SERVICE) as NotificationManager
+        // 已经没有活动任务：撤掉常驻通知，别留下「正在下载」的僵尸条目
+        if (!hasActiveWork()) {
+            nm.cancel(NOTIF_ID)
+            return
+        }
         nm.notify(NOTIF_ID, buildNotification())
     }
 
     override fun onBind(intent: Intent?): IBinder? = null
 
     override fun onDestroy() {
+        stopping = true
+        ticker?.cancel()
+        ticker = null
+        // 服务被系统回收时也不该留下一条「正在下载」的常驻通知
+        (getSystemService(NOTIFICATION_SERVICE) as NotificationManager).cancel(NOTIF_ID)
         networkCallback?.let {
             try {
                 (getSystemService(CONNECTIVITY_SERVICE) as ConnectivityManager).unregisterNetworkCallback(it)

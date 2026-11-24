@@ -480,9 +480,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 侧边栏的两组分类互相独立：
-     * 「任务」只看状态，「按类型分类」只看扩展名，两者可以同时生效（AND）。
-     * 每组都有自己的「全部」，默认两个维度都是全部。
+     * 侧边栏是单选：同一时间只有一行分类生效。
+     * 选「任务」里的某一项会清掉「按类型分类」，反之亦然；两组的「全部」等价于「全部下载」。
      */
     private fun addCatRows(
         container: LinearLayout,
@@ -517,14 +516,18 @@ class MainActivity : AppCompatActivity() {
     }
 
     private fun applyStatusCat(c: Cat) {
-        if (statusCat == c) return
+        if (statusCat == c && typeCat == Cat.ALL) return
         statusCat = c
+        // 单选：选了任务维度就把类型维度收回「全部」，避免两组同时高亮
+        typeCat = Cat.ALL
         applyFilters()
     }
 
     private fun applyTypeCat(c: Cat) {
-        if (typeCat == c) return
+        if (typeCat == c && statusCat == Cat.ALL) return
         typeCat = c
+        // 单选：选了类型维度就把任务维度收回「全部」
+        statusCat = Cat.ALL
         applyFilters()
     }
 
@@ -541,10 +544,18 @@ class MainActivity : AppCompatActivity() {
         playListEntrance()
     }
 
-    /** 高亮当前生效的两行（两个维度各一行；都为“全部”时两行“全部”同时高亮） */
+    /**
+     * 高亮当前生效的那一行，且保证任何时刻只有一行是激活态。
+     * 两个维度都回到「全部」时，点亮「任务 → 全部下载」；类型组的「全部」不单独占一行高亮。
+     */
     private fun selectRows() {
-        statusRows.forEach { (k, row) -> row.root.isActivated = k == statusCat }
-        typeRows.forEach { (k, row) -> row.root.isActivated = k == typeCat }
+        val allSelected = statusCat == Cat.ALL && typeCat == Cat.ALL
+        statusRows.forEach { (k, row) ->
+            row.root.isActivated = if (k == Cat.ALL) allSelected else k == statusCat
+        }
+        typeRows.forEach { (k, row) ->
+            row.root.isActivated = k != Cat.ALL && k == typeCat
+        }
     }
 
     /** 当前筛选组合的标题：全部下载 / 已完成 / 视频 / 视频 · 已完成 */
@@ -1474,7 +1485,10 @@ class MainActivity : AppCompatActivity() {
         val fill = Paint(Paint.ANTI_ALIAS_FLAG)
         val label = Paint(Paint.ANTI_ALIAS_FLAG).apply {
             color = Color.WHITE
-            textSize = 13f * resources.displayMetrics.scaledDensity
+            // sp → px 自己换算，避免直接读已废弃的 scaledDensity
+            textSize = android.util.TypedValue.applyDimension(
+                android.util.TypedValue.COMPLEX_UNIT_SP, 13f, resources.displayMetrics
+            )
             isFakeBoldText = true
         }
 
@@ -1699,6 +1713,8 @@ class MainActivity : AppCompatActivity() {
 
     // ---------- 生命周期 ----------
 
+    // minSdk 24 仍要覆盖旧入口；Android 13+ 由系统转调同一条链路
+    @Suppress("DEPRECATION", "OVERRIDE_DEPRECATION")
     override fun onBackPressed() {
         when {
             drawer.isDrawerOpen(GravityCompat.START) -> drawer.closeDrawer(GravityCompat.START)

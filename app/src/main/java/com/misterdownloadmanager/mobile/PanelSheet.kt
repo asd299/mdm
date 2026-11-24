@@ -13,6 +13,7 @@ import android.view.WindowManager
 import android.view.animation.DecelerateInterpolator
 import android.widget.FrameLayout
 import androidx.core.view.ViewCompat
+import androidx.core.view.WindowCompat
 import androidx.core.view.WindowInsetsCompat
 import androidx.core.view.doOnLayout
 import androidx.interpolator.view.animation.FastOutSlowInInterpolator
@@ -88,11 +89,11 @@ class PanelSheet(
             addFlags(WindowManager.LayoutParams.FLAG_DRAWS_SYSTEM_BAR_BACKGROUNDS)
             statusBarColor = Color.TRANSPARENT
             navigationBarColor = Color.TRANSPARENT
-            if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.M) {
-                decorView.systemUiVisibility =
-                    View.SYSTEM_UI_FLAG_LIGHT_STATUS_BAR or
-                    (if (Build.VERSION.SDK_INT >= Build.VERSION_CODES.O)
-                        View.SYSTEM_UI_FLAG_LIGHT_NAVIGATION_BAR else 0)
+            // 用兼容层设置深浅图标：API 30+ 走 WindowInsetsController，
+            // 旧系统内部回落 systemUiVisibility，不再手写废弃常量
+            WindowCompat.getInsetsController(this, decorView).apply {
+                isAppearanceLightStatusBars = true
+                isAppearanceLightNavigationBars = true
             }
         }
     }

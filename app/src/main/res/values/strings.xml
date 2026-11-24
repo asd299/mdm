@@ -9,24 +9,18 @@
     <string name="resume">继续</string>
     <string name="delete">删除</string>
     <string name="open">打开</string>
-    <string name="open_file">打开文件</string>
-    <string name="retry">重试</string>
     <string name="status_waiting">等待中</string>
     <string name="status_downloading">下载中</string>
     <string name="status_paused">已暂停</string>
     <string name="status_completed">已完成</string>
     <string name="status_failed">失败</string>
     <string name="invalid_url">请输入有效的 http/https 链接</string>
-    <string name="clipboard_prompt">检测到剪贴板链接：%1$s</string>
     <string name="delete_with_file">同时删除已下载的文件</string>
     <string name="delete_selected_confirm">确定删除所选的 %1$d 个任务吗？</string>
     <string name="delete_confirm">删除任务 “%1$s”？</string>
     <string name="notification_channel">下载进度</string>
     <string name="notif_title">正在下载</string>
-    <string name="notif_done">下载完成：%1$s</string>
-    <string name="notif_fail">下载失败：%1$s</string>
     <string name="all_paused">全部下载已完成或暂停</string>
-    <string name="already_exists">已存在相同链接的任务</string>
     <string name="clear_finished">清除已完成</string>
     <string name="clear_done_confirm">将移除 %1$d 个已完成或失败的任务记录，并删除应用内的文件副本。已保存到下载目录的文件不受影响。</string>
     <string name="saved_to">已保存到公共下载目录</string>
@@ -51,23 +45,14 @@
     <string name="wifi_keep_waiting">继续等待</string>
     <string name="add_waiting_wifi">已加入，连接 Wi-Fi 后自动开始</string>
     <string name="batch_waiting_wifi">%1$d 个任务已在等待 Wi-Fi，连接后自动开始</string>
-    <string name="settings">设置</string>
     <string name="pause_all">全部暂停</string>
     <string name="resume_all">全部继续</string>
     <string name="seg_count">下载线程数（分段数）</string>
     <string name="storage_free">存储：%1$s 可用</string>
     <string name="eta_left">剩余 %1$s</string>
     <string name="queued_status">排队中</string>
-    <string name="waiting_wifi">等待 Wi-Fi</string>
     <string name="save_path_label">保存路径</string>
-    <string name="save_path_note">完成后文件会保存到所选目录；默认为系统「下载」目录。</string>
-    <string name="filter_all">全部</string>
-    <string name="filter_running">进行中</string>
-    <string name="filter_paused">已暂停</string>
-    <string name="filter_done">已完成</string>
-    <string name="filter_failed">失败</string>
     <string name="summary_running">%1$d 个任务下载中 · %2$s</string>
-    <string name="choose_save_dir">更改保存目录…</string>
     <string name="save_dir_default">系统下载目录（默认）</string>
     <string name="save_dir_custom">自定义目录（SAF）</string>
     <string name="save_dir_current">当前：%1$s</string>
@@ -81,11 +66,6 @@
     <string name="saved_to_path">已保存到 %1$s</string>
     <string name="save_failed_short">已完成 · 未写入所选目录</string>
     <string name="save_failed_toast">「%1$s」未写入所选目录：%2$s\n可长按任务选择「重新保存到所选目录」</string>
-    <string name="save_retry">重新保存</string>
-    <string name="save_retry_done">已保存到 %1$s</string>
-    <string name="save_retry_failed">保存失败：%1$s</string>
-    <string name="save_retry_no_file">临时文件已不存在，无法重新保存</string>
-    <string name="save_retrying">正在重新保存…</string>
     <string name="prop_temp_path">临时文件</string>
 
     <!-- 侧边栏 -->
@@ -112,9 +92,6 @@
     <string name="stat_tasks">任务总数</string>
     <string name="stat_done">已完成</string>
     <string name="stat_total">累计下载</string>
-    <string name="drawer_open">打开侧边栏</string>
-    <string name="drawer_close">关闭侧边栏</string>
-    <string name="version_label">版本 %1$s</string>
 
     <!-- 列表操作 -->
     <string name="search">搜索</string>
@@ -139,9 +116,6 @@
     <string name="batch_none">所选任务中没有可操作项</string>
     <string name="cleared_count">已清除 %1$d 个任务</string>
     <string name="swipe_select">选择</string>
-    <string name="refresh_done">列表已刷新</string>
-    <string name="refresh_found">已刷新，发现 %1$d 个新任务</string>
-    <string name="refresh_hint">下拉可刷新列表</string>    <string name="swipe_select_hint">已选中该项；再左滑另一项，可连同中间的项一起批量选中</string>
     <string name="empty_all">暂无下载任务\n点击右下角按钮添加链接</string>
     <string name="empty_running">没有正在进行的下载</string>
     <string name="empty_done">还没有已完成的文件</string>
@@ -155,11 +129,8 @@
     <string name="empty_apk">没有安装包</string>
     <string name="empty_other">没有其他类型的文件</string>
     <string name="empty_search">没有匹配「%1$s」的任务</string>
-    <string name="properties">属性</string>
     <string name="properties_title">属性</string>
     <string name="properties_hint">轻触任意一行即可复制该值</string>
-    <string name="close">关闭</string>
-    <string name="multi_select">多选</string>
     <string name="prop_name">文件名</string>
     <string name="prop_url">下载链接</string>
     <string name="prop_path">路径</string>
@@ -176,15 +147,6 @@
     <string name="prop_copied">已复制%1$s</string>
     <string name="prop_saved_public">已复制到系统下载目录</string>
     <string name="prop_not_openable">文件尚未下载完成，无法打开</string>
-    <string name="item_details">详细信息</string>
-    <string name="copy_link">复制链接</string>
-    <string name="open_link">打开链接</string>
-    <string name="detail_name">文件名</string>
-    <string name="detail_size">大小</string>
-    <string name="detail_status">状态</string>
-    <string name="detail_path">保存路径</string>
-    <string name="detail_url">下载链接</string>
-    <string name="detail_time">添加时间</string>
     <!-- 崩溃 / 错误日志 -->
     <string name="crash_log">崩溃日志</string>
     <string name="crash_tip">日志已自动复制到剪切板，可直接粘贴反馈；此页也支持再次复制。</string>
@@ -199,10 +161,6 @@
     <string name="crash_found_msg">检测到上次运行时应用发生了崩溃，错误信息已写入剪切板并保存为日志。是否查看？</string>
     <string name="crash_view">查看日志</string>
     <string name="crash_ignore">忽略</string>
-    <string name="copy_error">复制错误信息</string>
-    <string name="error_copied">错误信息已复制到剪切板</string>
-    <string name="about_title">关于 Mister 下载管理器</string>
-    <string name="about_text">一款轻量的 Android 多线程下载管理器。\n\n· 多线程分段下载，支持断点续传\n· 支持浏览器接入（Via 原生下载器选择）\n· 按状态/类型分类、排序与搜索\n· 批量暂停、继续、删除、分享\n\n基于开源项目 misterdownloadmanager 思路实现。</string>
 
     <!-- 关于页 -->
     <string name="about_version_row">版本 %1$s（%2$d）</string>
@@ -225,7 +183,6 @@
     <string name="about_features">下载的文件会直接保存到系统「下载」目录，只出现在文件管理器里，不计入应用数据，卸载应用也不会删掉。\n\n下载采用多线程分段 + 断点续传：网络中断或手动暂停后，继续时会从断点接着下。\n\n其它应用里的链接可以交给本应用下载；添加任务前会检查重复链接、重复文件名与目录里的同名文件，由你决定跳过、改名还是覆盖。\n\n所有任务记录只保存在本机，不上传、不统计。</string>
     <string name="about_credit">致谢</string>
     <string name="about_credit_body">本应用的多线程分段下载设计来自开源项目 Mister Download Manager（纯 Rust 桌面下载管理器）。感谢原作者 anefzaoui 与所有贡献者，让这套下载思路能在移动端复用。</string>
-    <string name="about_project_owner">anefzaoui / misterdownloadmanager</string>
     <string name="about_open_failed">没有可以打开链接的应用</string>
     <string name="about_footer">用 Kotlin 从零实现 · 数据仅保存在本机</string>
     <string name="changelog_title">版本更新说明</string>
@@ -254,4 +211,5 @@
     <string name="conflict_skipped">已跳过，未添加任务</string>
     <string name="add_started">已开始下载</string>
     <string name="add_queued">已添加到队列</string>
+    <string name="swipe_select_hint">已选中该项；再左滑另一项，可连同中间的项一起批量选中</string>
 </resources>

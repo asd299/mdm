@@ -7,7 +7,6 @@ import android.view.View
 import android.view.ViewConfiguration
 import android.widget.FrameLayout
 import androidx.core.view.GravityCompat
-import androidx.core.view.ViewCompat
 import androidx.customview.widget.ViewDragHelper
 import androidx.dynamicanimation.animation.FloatPropertyCompat
 import androidx.dynamicanimation.animation.SpringAnimation
@@ -297,7 +296,7 @@ class SwipeDrawerLayout @JvmOverloads constructor(
     override fun computeScroll() {
         // 拖拽时的位移是即时的；只有 ViewDragHelper 自己接管过 settle 才需要这里推进
         if (dragHelper.continueSettling(true)) {
-            ViewCompat.postInvalidateOnAnimation(this)
+            postInvalidateOnAnimation()
         }
     }
 

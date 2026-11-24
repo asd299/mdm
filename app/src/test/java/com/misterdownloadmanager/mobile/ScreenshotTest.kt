@@ -292,7 +292,6 @@ class ScreenshotTest {
                     View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(2400, View.MeasureSpec.AT_MOST),
                 )
-                println("CONFLICT_H ${decor.measuredHeight}")
                 shot(decor, 1080, decor.measuredHeight.coerceAtLeast(600), "/tmp/shot_conflict.png")
                 d.dismiss()
             }
@@ -448,7 +447,6 @@ class ScreenshotTest {
                     View.MeasureSpec.makeMeasureSpec(1080, View.MeasureSpec.EXACTLY),
                     View.MeasureSpec.makeMeasureSpec(2280, View.MeasureSpec.AT_MOST),
                 )
-                println("ADD_DIALOG_H ${decor.measuredHeight}")
                 shot(decor, 1080, decor.measuredHeight.coerceAtLeast(600), "/tmp/shot_add.png")
                 d.dismiss()
             }

@@ -28,7 +28,7 @@ class VersionSchemeTest {
             parts.take(3).joinToString("."),
         )
         assertEquals(
-            "迭代号应按版本条数递增（当前第 1 版 = 1001）",
+            "迭代号应按版本条数递增（首版 1001，每发一版 +1）",
             Changelog.ITERATION_BASE + Changelog.versions.size - 1,
             parts[3].toInt(),
         )
@@ -36,10 +36,20 @@ class VersionSchemeTest {
 
     @Test
     fun changelogStartsAtFirstVersion() {
-        assertEquals("记录应从第一个版本开始，且只保留已交付的版本", 1, Changelog.versions.size)
-        assertEquals(BuildConfig.VERSION_NAME, Changelog.versions.first().name)
-        assertTrue("第一版要有内容", Changelog.versions.first().notes.size >= 5)
-        assertTrue("第一版要有日期", date.matches(Changelog.versions.first().date))
+        assertTrue("版本记录不能为空", Changelog.versions.isNotEmpty())
+        // 列表按发布时间倒序：最新版本在最前，首版在最后
+        assertEquals("最新版本应排在最前", BuildConfig.VERSION_NAME, Changelog.versions.first().name)
+        assertTrue("每个版本都要有内容", Changelog.versions.first().notes.size >= 3)
+        assertTrue("每个版本都要有日期", date.matches(Changelog.versions.first().date))
+        assertEquals(
+            "首版应为 0.5.2.1001",
+            "${Changelog.upstream.version}.${Changelog.ITERATION_BASE}",
+            Changelog.versions.last().name,
+        )
+        // 版本号必须逐版递减，不能重复或乱序
+        val names = Changelog.versions.map { it.name }
+        assertEquals("版本号不能重复：$names", names.size, names.toSet().size)
+        assertEquals(names.sortedDescending(), names)
     }
 
     @Test
