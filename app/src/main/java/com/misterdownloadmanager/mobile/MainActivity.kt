@@ -186,6 +186,8 @@ class MainActivity : AppCompatActivity() {
         drawer.addDrawerListener(object : SwipeDrawerLayout.Listener {
             override fun onDrawerOpened(drawerView: View) {
                 updateNavCounts()
+                // 每次打开都按当前筛选重刷一遍高亮，避免任何残留的旧高亮
+                selectRows()
             }
         })
         buildNav()
@@ -480,8 +482,9 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 侧边栏是单选：同一时间只有一行分类生效。
-     * 选「任务」里的某一项会清掉「按类型分类」，反之亦然；两组的「全部」等价于「全部下载」。
+     * 侧边栏分组：每组内部单选。
+     * 「任务」组只能有一项生效，「按类型分类」组也只能有一项生效，两组可以同时各选一项，
+     * 由列表按 AND 组合成双重过滤（例如「已完成 + 视频」）。
      */
     private fun addCatRows(
         container: LinearLayout,
@@ -515,19 +518,20 @@ class MainActivity : AppCompatActivity() {
         container.addView(row)
     }
 
+    /**
+     * 两个维度各自单选、互不影响：
+     * 「任务」组选一项、「按类型分类」组选一项，二者按 AND 组合（双重过滤）。
+     * 每组内部永远只有一行生效；点该组的「全部」只清空这一组，另一组保持不动。
+     */
     private fun applyStatusCat(c: Cat) {
-        if (statusCat == c && typeCat == Cat.ALL) return
+        if (statusCat == c) return
         statusCat = c
-        // 单选：选了任务维度就把类型维度收回「全部」，避免两组同时高亮
-        typeCat = Cat.ALL
         applyFilters()
     }
 
     private fun applyTypeCat(c: Cat) {
-        if (typeCat == c && statusCat == Cat.ALL) return
+        if (typeCat == c) return
         typeCat = c
-        // 单选：选了类型维度就把任务维度收回「全部」
-        statusCat = Cat.ALL
         applyFilters()
     }
 
@@ -545,13 +549,15 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 高亮当前生效的那一行，且保证任何时刻只有一行是激活态。
-     * 两个维度都回到「全部」时，点亮「任务 → 全部下载」；类型组的「全部」不单独占一行高亮。
+     * 每组最多点亮一行，绝不出现同组多行高亮：
+     * - 该组选了具体分类 → 只点亮那一行；
+     * - 两组都没筛选 → 点亮「任务 → 全部下载」，类型组的「全部」不再重复占一行；
+     * - 另一组在筛选、本组为「全部」→ 本组不点亮（没有生效条件，避免虚高亮）。
      */
     private fun selectRows() {
-        val allSelected = statusCat == Cat.ALL && typeCat == Cat.ALL
+        val noFilter = statusCat == Cat.ALL && typeCat == Cat.ALL
         statusRows.forEach { (k, row) ->
-            row.root.isActivated = if (k == Cat.ALL) allSelected else k == statusCat
+            row.root.isActivated = if (k == Cat.ALL) noFilter else k == statusCat
         }
         typeRows.forEach { (k, row) ->
             row.root.isActivated = k != Cat.ALL && k == typeCat
