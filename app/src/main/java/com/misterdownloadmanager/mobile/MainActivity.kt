@@ -482,9 +482,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 侧边栏分组：每组内部单选。
-     * 「任务」组只能有一项生效，「按类型分类」组也只能有一项生效，两组可以同时各选一项，
-     * 由列表按 AND 组合成双重过滤（例如「已完成 + 视频」）。
+     * 侧边栏全局单选：同一时间只有一行分类生效。
+     * 选「任务」里的某一项会清掉「按类型分类」的高亮，反之亦然；两组的「全部」等价于「全部下载」。
      */
     private fun addCatRows(
         container: LinearLayout,
@@ -494,6 +493,8 @@ class MainActivity : AppCompatActivity() {
     ) {
         items.forEach { (c, icon, label) ->
             val row = layoutInflater.inflate(R.layout.item_nav_row, container, false)
+            // 每行独立一份背景，避免共享 ConstantState 的机型上出现高亮残留
+            row.background = row.background?.mutate()
             row.findViewById<ImageView>(R.id.navIcon).setImageResource(icon)
             row.findViewById<TextView>(R.id.navTitle).text = getString(label)
             val count = row.findViewById<TextView>(R.id.navCount)
@@ -519,19 +520,21 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 两个维度各自单选、互不影响：
-     * 「任务」组选一项、「按类型分类」组选一项，二者按 AND 组合（双重过滤）。
-     * 每组内部永远只有一行生效；点该组的「全部」只清空这一组，另一组保持不动。
+     * 全局单选：点任何一项，立即取消之前的高亮，整个侧边栏只保留当前这一项。
+     * 选中「任务」组的项会把「按类型分类」收回「全部」，反之亦然；
+     * 两组都回到「全部」时点亮「任务 → 全部下载」。
      */
     private fun applyStatusCat(c: Cat) {
-        if (statusCat == c) return
+        if (statusCat == c && typeCat == Cat.ALL) return
         statusCat = c
+        typeCat = Cat.ALL
         applyFilters()
     }
 
     private fun applyTypeCat(c: Cat) {
-        if (typeCat == c) return
+        if (typeCat == c && statusCat == Cat.ALL) return
         typeCat = c
+        statusCat = Cat.ALL
         applyFilters()
     }
 

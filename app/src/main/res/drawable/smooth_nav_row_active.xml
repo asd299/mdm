@@ -1,5 +1,7 @@
 <?xml version="1.0" encoding="utf-8"?>
-<drawable class="com.misterdownloadmanager.mobile.SmoothShapeDrawable"
-    xmlns:app="http://schemas.android.com/apk/res-auto"
-    app:smColor="@color/ios_blue_light"
-    app:smRadius="11dp" />
+<!-- 选中态药丸：框架标准 shape（11dp 圆角），不依赖自定义 Drawable，任何实例下渲染都稳定 -->
+<shape xmlns:android="http://schemas.android.com/apk/res/android"
+    android:shape="rectangle">
+    <corners android:radius="11dp" />
+    <solid android:color="@color/ios_blue_light" />
+</shape>
