@@ -482,8 +482,8 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 侧边栏全局单选：同一时间只有一行分类生效。
-     * 选「任务」里的某一项会清掉「按类型分类」的高亮，反之亦然；两组的「全部」等价于「全部下载」。
+     * 侧边栏分组：每组内部单选、两组互不影响。
+     * 「任务」组和「按类型分类」组可以同时各选一项，由列表按 AND 组合成双重过滤。
      */
     private fun addCatRows(
         container: LinearLayout,
@@ -520,21 +520,20 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 全局单选：点任何一项，立即取消之前的高亮，整个侧边栏只保留当前这一项。
-     * 选中「任务」组的项会把「按类型分类」收回「全部」，反之亦然；
-     * 两组都回到「全部」时点亮「任务 → 全部下载」。
+     * 两个维度各自单选、互不干扰：
+     * 「任务」组选一项、「按类型分类」组选一项，两组可以同时各亮一行，
+     * 列表按 AND 组合成双重过滤（例如「已完成 + 视频」）。
+     * 组内永远只有一行生效；点该组的「全部」只清空这一组，另一组保持不动。
      */
     private fun applyStatusCat(c: Cat) {
-        if (statusCat == c && typeCat == Cat.ALL) return
+        if (statusCat == c) return
         statusCat = c
-        typeCat = Cat.ALL
         applyFilters()
     }
 
     private fun applyTypeCat(c: Cat) {
-        if (typeCat == c && statusCat == Cat.ALL) return
+        if (typeCat == c) return
         typeCat = c
-        statusCat = Cat.ALL
         applyFilters()
     }
 
@@ -552,19 +551,12 @@ class MainActivity : AppCompatActivity() {
     }
 
     /**
-     * 每组最多点亮一行，绝不出现同组多行高亮：
-     * - 该组选了具体分类 → 只点亮那一行；
-     * - 两组都没筛选 → 点亮「任务 → 全部下载」，类型组的「全部」不再重复占一行；
-     * - 另一组在筛选、本组为「全部」→ 本组不点亮（没有生效条件，避免虚高亮）。
+     * 每组恰好点亮一行（该组当前选中的那项，含该组的「全部」）：
+     * 同组点击新项会熄灭旧行；两组互不影响，最多同时两行高亮。
      */
     private fun selectRows() {
-        val noFilter = statusCat == Cat.ALL && typeCat == Cat.ALL
-        statusRows.forEach { (k, row) ->
-            row.root.isActivated = if (k == Cat.ALL) noFilter else k == statusCat
-        }
-        typeRows.forEach { (k, row) ->
-            row.root.isActivated = k != Cat.ALL && k == typeCat
-        }
+        statusRows.forEach { (k, row) -> row.root.isActivated = k == statusCat }
+        typeRows.forEach { (k, row) -> row.root.isActivated = k == typeCat }
     }
 
     /** 当前筛选组合的标题：全部下载 / 已完成 / 视频 / 视频 · 已完成 */

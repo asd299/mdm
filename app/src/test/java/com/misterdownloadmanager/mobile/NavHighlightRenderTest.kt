@@ -79,12 +79,17 @@ class NavHighlightRenderTest {
         assertTrue("$group 组亮了 $lit 行，最多只能一行", lit <= 1)
     }
 
-    /** 全局只能有一行画着药丸：点新的一项，旧药丸必须从像素上消失 */
-    private fun assertExactlyOneLit(status: List<RowPix>, types: List<RowPix>) {
-        val lit = status.count { it.blue } + types.count { it.blue }
+    /** 每组恰好一行画着药丸；同组点新项，旧药丸必须从像素上消失 */
+    private fun assertEachGroupOneLit(status: List<RowPix>, types: List<RowPix>) {
+        val sLit = status.count { it.blue }
+        val tLit = types.count { it.blue }
         assertTrue(
-            "全局亮了 $lit 行（任务：${status.joinToString { "${it.name}=${if (it.blue) "●" else "○" }}" }}；类型：${types.joinToString { "${it.name}=${if (it.blue) "●" else "○" }}" }}），必须恰好一行",
-            lit == 1,
+            "任务组亮了 $sLit 行（${status.joinToString { "${it.name}=${if (it.blue) "●" else "○" }}" }}），必须恰好一行",
+            sLit == 1,
+        )
+        assertTrue(
+            "类型组亮了 $tLit 行（${types.joinToString { "${it.name}=${if (it.blue) "●" else "○" }}" }}），必须恰好一行",
+            tLit == 1,
         )
     }
 
@@ -108,25 +113,33 @@ class NavHighlightRenderTest {
                 val types = a.findViewById<LinearLayout>(R.id.bodyTypes)
                 val panel = a.findViewById<View>(R.id.drawerPanel)
 
-                // 默认：只亮「全部下载」
+                // 默认：两组的「全部」各亮一行
                 assertPillMatches(sampleRows(panel, status), "任务")
                 assertPillMatches(sampleRows(panel, types), "类型")
-                assertExactlyOneLit(sampleRows(panel, status), sampleRows(panel, types))
+                assertEachGroupOneLit(sampleRows(panel, status), sampleRows(panel, types))
 
-                // 选「视频」再选「已完成」：点新的必须取消旧的，全局任何时刻只有一行药丸
+                // 类型组选「视频」再换「音乐」：同组内点新的必须取消旧的（像素级）
                 types.getChildAt(1).performClick()
-                status.getChildAt(2).performClick()
+                types.getChildAt(2).performClick()
                 drawer.openDrawer(androidx.core.view.GravityCompat.START)
 
-                val sp = sampleRows(panel, status)
-                val tp = sampleRows(panel, types)
-                assertPillMatches(sp, "任务")
+                var tp = sampleRows(panel, types)
                 assertPillMatches(tp, "类型")
-                assertExactlyOneLit(sp, tp)
                 assertTrue(
                     "「视频」的旧药丸必须被取消：${tp.joinToString { "${it.name}=${if (it.blue) "●" else "○" }}" }}",
                     tp.none { it.name == a.getString(R.string.nav_video) && it.blue },
                 )
+
+                // 任务组再选「已完成」：两组各亮一行，互不干扰
+                status.getChildAt(2).performClick()
+                drawer.openDrawer(androidx.core.view.GravityCompat.START)
+
+                val sp = sampleRows(panel, status)
+                tp = sampleRows(panel, types)
+                assertPillMatches(sp, "任务")
+                assertPillMatches(tp, "类型")
+                assertEachGroupOneLit(sp, tp)
+                assertTrue("「音频」不能被任务组的选择挤掉", tp.any { it.name == a.getString(R.string.nav_audio) && it.blue })
             }
         }
     }

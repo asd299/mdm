@@ -15,7 +15,7 @@ import org.robolectric.RobolectricTestRunner
 import org.robolectric.annotation.Config
 import java.io.File
 
-/** 侧边栏全局单选分类、过滤逻辑，以及下拉刷新的数据合并 */
+/** 侧边栏两组各自单选、可叠加筛选，以及下拉刷新的数据合并 */
 @RunWith(RobolectricTestRunner::class)
 @Config(sdk = [34], qualifiers = "w411dp-h891dp-xxhdpi")
 class FiltersAndRefreshTest {
@@ -43,7 +43,7 @@ class FiltersAndRefreshTest {
     private fun titleOf(a: MainActivity): String =
         a.findViewById<TextView>(R.id.tvLargeTitle).text.toString()
 
-    /** 纯逻辑：过滤层仍支持两维度 AND（界面为全局单选，任一维度为「全部」时不参与过滤） */
+    /** 纯逻辑：两个维度组合过滤（界面两组各选一项叠加），任一维度为「全部」时不参与过滤 */
     @Test
     fun twoDimensionsCombineWithAnd() {
         val t = task("1", "movie.mp4", Status.COMPLETED, "/tmp")
@@ -62,9 +62,9 @@ class FiltersAndRefreshTest {
         assertTrue(FileTypes.matchesStatus(Cat.VIDEO, t))
     }
 
-    /** 侧边栏全局单选：点新的一项必须取消旧的高亮，任意时刻只有一行亮起 */
+    /** 侧边栏两组各自单选：组内只亮一行、点新项取消旧行，两组互不影响并按 AND 组合 */
     @Test
-    fun sidebarIsSingleChoiceAcrossGroups() {
+    fun sidebarIsSingleChoiceWithinEachGroup() {
         ActivityScenario.launch(MainActivity::class.java).use { sc ->
             sc.onActivity { a ->
                 val dir = a.filesDir.absolutePath
@@ -83,42 +83,55 @@ class FiltersAndRefreshTest {
                 fun active(c: LinearLayout) =
                     (0 until c.childCount).filter { c.getChildAt(it).isActivated }
 
-                // 默认：只有「任务 → 全部下载」高亮
+                // 默认：两组的「全部」各亮一行
                 assertEquals(Cat.ALL, ad.statusCat)
                 assertEquals(Cat.ALL, ad.typeCat)
                 assertEquals(3, ad.itemCount)
                 assertEquals(listOf(0), active(statusRows))
-                assertTrue("默认不应有类型行高亮：${active(typeRows)}", active(typeRows).isEmpty())
+                assertEquals(listOf(0), active(typeRows))
 
-                // 选「视频」：旧的高亮（全部下载）必须取消，只剩类型组这一行
+                // 类型组选「视频」：任务组不受影响，仍亮「全部下载」
                 typeRows.getChildAt(1).performClick()
                 assertEquals(Cat.VIDEO, ad.typeCat)
                 assertEquals(Cat.ALL, ad.statusCat)
                 assertEquals(2, ad.itemCount)
                 assertEquals(a.getString(R.string.nav_video), titleOf(a))
                 assertEquals(listOf(1), active(typeRows))
-                assertTrue("选类型后任务行应全部熄灭：${active(statusRows)}", active(statusRows).isEmpty())
+                assertEquals(listOf(0), active(statusRows))
 
-                // 再选「已完成」：视频的高亮必须被取消，只剩任务组这一行
+                // 同组换「音乐」：组内旧行必须熄灭
+                typeRows.getChildAt(2).performClick()
+                assertEquals(Cat.AUDIO, ad.typeCat)
+                assertEquals(listOf(2), active(typeRows))
+                assertEquals(1, ad.itemCount)
+
+                // 任务组再选「已完成」：两组各亮一行，AND 后只剩已完成的 mp3
                 statusRows.getChildAt(2).performClick()
                 assertEquals(Cat.DONE, ad.statusCat)
-                assertEquals(Cat.ALL, ad.typeCat)
-                assertEquals("全局单选下只按已完成过滤", 2, ad.itemCount)
-                assertEquals(a.getString(R.string.nav_done), titleOf(a))
+                assertEquals(Cat.AUDIO, ad.typeCat)
+                assertEquals(1, ad.itemCount)
                 assertEquals(listOf(2), active(statusRows))
-                assertTrue("选任务后类型行应全部熄灭：${active(typeRows)}", active(typeRows).isEmpty())
+                assertEquals(listOf(2), active(typeRows))
+                assertEquals(
+                    a.getString(R.string.nav_audio) + " · " + a.getString(R.string.nav_done),
+                    titleOf(a),
+                )
 
-                // 同组切换：旧的选中行必须熄灭
-                statusRows.getChildAt(3).performClick()
-                assertEquals(listOf(3), active(statusRows))
-
-                // 点「全部下载」回到初始态
+                // 点任务组「全部」：只清空任务组，类型组保持不动
                 statusRows.getChildAt(0).performClick()
+                assertEquals(Cat.ALL, ad.statusCat)
+                assertEquals(Cat.AUDIO, ad.typeCat)
+                assertEquals(1, ad.itemCount)
+                assertEquals(listOf(0), active(statusRows))
+                assertEquals(listOf(2), active(typeRows))
+
+                // 点类型组「全部」：回到初始态，两组「全部」各亮一行
+                typeRows.getChildAt(0).performClick()
                 assertEquals(Cat.ALL, ad.statusCat)
                 assertEquals(Cat.ALL, ad.typeCat)
                 assertEquals(3, ad.itemCount)
                 assertEquals(listOf(0), active(statusRows))
-                assertTrue(active(typeRows).isEmpty())
+                assertEquals(listOf(0), active(typeRows))
             }
         }
     }
